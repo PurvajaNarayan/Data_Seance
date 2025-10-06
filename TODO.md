@@ -12,11 +12,11 @@
         - `V2` ranker for largers set of guidelines
     2. tools
         1. Code reader (reading code to get model and data)
-            1. `V1`: manually pass it as arguements
+            1. `V1`: manually pass model and data as arguements
             2. `V2`: Code parsing, agent loads model and data on the fly based on existing code
         2. metadata access
         3. explainability techniques access
-            - `V1`: minimal set of explainable techniques, (fittable in context)
+            - `V1`: minimal set of explainability functions, (fittable in context)
             - `V2`: Ranker for larger set of explainability techniques
         4. python runtime to run explainability.
 
@@ -27,4 +27,3 @@
         - `V2`: side by side
             1. plot/visualizations pannel
             2. text explanation pannel
-
