@@ -14,11 +14,10 @@
         1. Code reader (reading code to get model and data)
             1. `V1`: manually pass model and data as arguements
             2. `V2`: Code parsing, agent loads model and data on the fly based on existing code
-        2. metadata access
-        3. explainability techniques access
+        2. explainability techniques access
             - `V1`: minimal set of explainability functions, (fittable in context)
             - `V2`: Ranker for larger set of explainability techniques
-        4. python runtime to run explainability.
+        3. python runtime to run explainability.
 
 4. Streamlit UI
     1. guidelines page
