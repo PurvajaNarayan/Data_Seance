@@ -1,0 +1,159 @@
+# AI System Ethical Compliance Checklist
+
+Use this document as a YES/NO checklist for any AI project, dataset, or model.
+
+---
+
+## A. Legitimate Purpose & Legal Fit
+
+**A1. Prohibited Uses**
+
+* The documented purpose of the system is not in any prohibited or “unacceptable risk” category under applicable law or company policy.
+* The system is not designed or used for unlawful discrimination, unlawful surveillance, or other banned practices.
+
+**A2. Legal Basis & Policy Alignment**
+
+* A clear legal basis for data collection and processing is documented (e.g., consent, contract, legitimate interest, regulatory requirement).
+* The documented purpose and use of the system are consistent with relevant regulations and internal policies.
+* Jurisdictions and domains in which the system is deployed are documented and allowed.
+
+---
+
+## B. Feature Legitimacy & Causal Plausibility
+
+**B1. Relevance of Features**
+
+* Each feature with substantial influence on the model’s predictions has a documented, legitimate, domain-plausible relationship to the target outcome.
+* No feature is relied upon as a driver of predictions without a clear and non-discriminatory rationale.
+
+**B2. No Pure Identity or Stereotype Features**
+
+* Features whose primary meaning is group identity (e.g., explicit race, religion, gender) are not used to worsen outcomes in high-impact decisions, except where explicitly allowed for fairness adjustments.
+* Features that encode stereotypes without legitimate causal links to the outcome are not used as predictors.
+
+**B3. Plausible Model Drivers**
+
+* Global explainability outputs indicate that the main drivers of predictions align with accepted domain knowledge.
+* Arbitrary or nonsensical drivers (e.g., random IDs, meaningless tokens) do not dominate the explanation of model behavior.
+
+---
+
+## C. Protected / Sensitive Attributes & Proxies
+
+**C1. Treatment of Protected Attributes**
+
+* Protected attributes (e.g., race, color, national origin, religion, sex/gender, disability, age, sexual orientation, or other locally defined protected traits) are not used as negative signals in high-impact decisions.
+* Any use of protected attributes is explicitly documented and legally permitted.
+
+**C2. Proxies for Protected Attributes**
+
+* Features known or strongly suspected to act as proxies for protected attributes (e.g., certain geographic indicators, institutional affiliations) are reviewed and justified.
+* Such proxy features do not exert disproportionate negative influence on outcomes without legitimate and documented justification.
+
+**C3. Fairness-Improving Use of Protected Attributes**
+
+* Where protected attributes are used, their purpose is monitoring, auditing, or mitigating bias.
+* Evidence shows that such use maintains or improves fairness rather than worsening disparities.
+
+---
+
+## D. Data Quality, Representativeness & Bias
+
+**D1. Contextual Fit of Data**
+
+* Training, validation, and test data are relevant to the intended deployment population and conditions.
+* Any substantial differences between data populations and deployment populations are documented, with mitigation strategies where relevant.
+
+**D2. Group Representation**
+
+* Key demographic or vulnerable groups expected in the deployment context are present in the data in sufficient quantity for reliable modeling and evaluation.
+* Any material under-representation of such groups is documented, including potential impact and mitigation.
+
+**D3. Label Integrity and Historical Bias**
+
+* Label generation processes (e.g., human decisions, historical outcomes) are documented.
+* Known or likely historical or systemic biases in labels are identified, and mitigation or limitations are documented.
+
+---
+
+## E. Outcome Fairness & Group Impact
+
+**E1. Group Performance Parity**
+
+* Model performance metrics (e.g., accuracy, error rates, calibration) are evaluated across relevant groups (including protected groups).
+* Significant performance gaps across groups are identified, justified, and mitigated where feasible.
+
+**E2. Distribution of Harmful Errors**
+
+* For impactful decisions, harmful error types (e.g., false denials of benefits, false accusations) are measured across groups.
+* Harmful errors are not disproportionately concentrated on protected or vulnerable groups without strong justification and mitigation.
+
+**E3. Justification of Outcome Disparities**
+
+* Differences in approval/selection/flagging rates between groups are evaluated.
+* Observed disparities are explainable primarily by legitimate, causally relevant factors rather than by protected attributes or proxies.
+
+---
+
+## F. Privacy & Data Minimization
+
+**F1. Data Minimization**
+
+* Personal and sensitive data used by the system are limited to what is necessary for the stated purpose.
+* Collection and use of highly sensitive attributes (e.g., health, precise location, intimate details) are explicitly justified and minimized.
+
+**F2. Protection Against Exposure**
+
+* Data handling and model design reduce the risk of exposing identifiable training data through outputs.
+* Controls exist to prevent unauthorized access to raw data and to reduce re-identification risk.
+
+---
+
+## G. Robustness, Reliability & Safety
+
+**G1. Robust Behavior Under Variation**
+
+* The system maintains reasonable, stable behavior under expected variations (e.g., noise, missing values, minor distribution shifts).
+* Testing demonstrates that small, plausible input changes do not cause extreme or unexplained changes in critical outputs.
+
+**G2. Foreseeable Failure Modes**
+
+* Foreseeable high-impact failure modes and edge cases are documented.
+* Safeguards, constraints, or usage restrictions are in place for safety-critical or high-impact contexts.
+
+---
+
+## H. Transparency, Contestability & User Awareness
+
+**H1. Explainability of Decisions**
+
+* The system can provide human-understandable explanations of key factors influencing individual decisions, appropriate to the audience and domain.
+* Limitations of these explanations are documented.
+
+**H2. Contestability & Correction**
+
+* There is a documented process by which affected individuals or stakeholders can request review or correction of decisions.
+* There is a documented process for correcting underlying data errors that affect model behavior.
+
+**H3. AI Use Disclosure**
+
+* Where required by policy or law, users or affected individuals are informed that AI is being used in decision-making or support.
+
+---
+
+## I. Accountability & Documentation
+
+**I1. Clear Ownership**
+
+* A responsible technical owner is designated for the system.
+* A responsible risk/ethics or product owner is designated for the system.
+
+**I2. System Documentation**
+
+* Documentation exists describing at least:
+
+  * Intended purpose and scope of the system.
+  * Data sources and key data characteristics.
+  * Model type, training process, and main performance metrics (including relevant group-level metrics).
+  * Known limitations, risks, and mitigation strategies.
+* Versioning of models, data, and documentation is maintained to support traceability and audit.
