@@ -1,28 +1,24 @@
-# Tasks
+# Rollout plan
 
-1. finding the best way to demonstrate bias in data
-    1. What model?
-    2. What explainability techniques?
+1. Complete project with **single LLM call**.
+    - Brief descriptions about the project, model and the data along with a few explainability results are curated and given to the model. The model then provides the answer. Aim is to complete v1 of all components (frontend and backend).
 
-2. Finalizing a set of Guidelines for the project (Minimally Viable) ([cognitive bias codex](https://www.sog.unc.edu/sites/www.sog.unc.edu/files/course_materials/Cognitive%20Biases%20Codex.pdf), [Ethical Principles for Web Machine Learning](https://www.w3.org/TR/webmachinelearning-ethics/))
+2. ReACT agent with explainability tools
+    - LLM makes tool calls, and refines it's response.
 
-3. Agent adaptation
-    1. Guidelines validation
-        - `V1` minimal guidlines fittable in context
-        - `V2` ranker for largers set of guidelines
-    2. tools
-        1. Code reader (reading code to get model and data)
-            1. `V1`: manually pass model and data as arguements
-            2. `V2`: Code parsing, agent loads model and data on the fly based on existing code
-        2. explainability techniques access
-            - `V1`: minimal set of explainability functions, (fittable in context)
-            - `V2`: Ranker for larger set of explainability techniques
-        3. python runtime to run explainability.
+3. Multi-LLm actor-critic 
+    - 1 LLM gets explainability, writes response
+    - The other critcs the response based on guidelines+response-requirements.
 
-4. Streamlit UI
-    1. guidelines page
-    1. explanation:
-        - `V1` single page prose form
-        - `V2`: side by side
-            1. plot/visualizations pannel
-            2. text explanation pannel
+## items
+
+- figure out data and understand the proposed bias.
+- figure out explainability technique to express the bias
+  - Shaply values
+  - other relevant explainability techniques
+- ~~find guidelines that explicitely cautions about this particular bias~~
+- ~~promptify guidelines~~
+- toolify a few explainability techniques
+- show that the agent calls appropriate explainability techniques
+- show that the agent is able to specifity which guidelines are violated
+    and generates a user-ready explanation displaying the bias.

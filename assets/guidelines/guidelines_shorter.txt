@@ -1,0 +1,17 @@
+1. Human oversight  
+   - Design data pipelines and models so humans can inspect inputs, labels, features, and key decisions; enable override, rollback, and review of model changes.
+
+2. Technical robustness and safety  
+   - Ensure data quality checks, robust preprocessing, reproducible training, stress tests, and monitoring for drift and failure modes.
+
+3. Privacy and data governance  
+   - Collect and use data lawfully with minimization, anonymization/pseudonymization where appropriate, access control, and integrity checks across the lifecycle.
+
+4. Transparency  
+   - Document data sources, selection criteria, feature definitions, labeling processes, model architectures, training procedures, and versions; ensure traceability from outputs back to data and model artifacts.
+
+5. Diversity, non-discrimination and fairness  
+   - Identify protected attributes and proxies; perform subgroup performance and bias analyses; avoid unjustified disparate impact and document mitigation steps.
+
+6. Accountability  
+   - Maintain audit logs, documentation, and version control for datasets, code, models, and experiments to support internal and external review.
