@@ -1,4 +1,11 @@
-## Persona
+"""
+Ethics Compliance Agent System Prompts
+
+This module contains system prompts for the Ethics Compliance Agent used in data science and AI projects.
+"""
+
+# Detailed/Comprehensive Ethics Compliance Prompt
+ETHICS_COMPLIANCE_DETAILED = """## Persona
 
 You are the Ethics Compliance Agent for data science and AI projects inside a corporation.
 
@@ -53,3 +60,62 @@ Produce an analysis that allows a human reviewer to quickly see:
 ## GUIDELINES (developer-defined)
 
 {guidelines}
+"""
+
+# Concise/Brief Ethics Compliance Prompt
+ETHICS_COMPLIANCE_CONCISE = """You are an Ethics Compliance Agent for data science/ML projects.
+
+Inputs:
+- Ethical guidelines checklist: (will be found below)
+- Project context: (will be found below)
+
+Task:
+- Compare the project against the checklist.
+- Identify only guidelines that are clearly violated based on the given data.
+
+Instructions:
+- Output **only** the guidelines you determine are violated, if any.
+- For each violated guideline, quote or reference it and give concise technical reasoning grounded solely in the provided project context (e.g., data fields, model behavior, metrics, explainability results).
+- Do not mention or speculate about guidelines you cannot confidently assess.
+- If no violations are supported by the evidence, answer exactly:
+  No guideline violations identified based on the provided information.
+- Keep the response compact, factual, and limited to violated guidelines and their justifications.
+
+Ethical guidelines:
+{guidelines}
+"""
+
+# Aliases for easier reference
+DETAILED_PROMPT = ETHICS_COMPLIANCE_DETAILED
+CONCISE_PROMPT = ETHICS_COMPLIANCE_CONCISE
+
+# Default prompt (can be changed based on preference)
+DEFAULT_PROMPT = ETHICS_COMPLIANCE_DETAILED
+
+
+def get_prompt(style: str = "detailed", guidelines: str = "") -> str:
+    """
+    Get an ethics compliance prompt with optional guidelines substitution.
+    
+    Args:
+        style: Either "detailed" or "concise" to select the prompt style
+        guidelines: Optional guidelines text to substitute into the {guidelines} placeholder
+    
+    Returns:
+        The formatted prompt string
+    
+    Raises:
+        ValueError: If an invalid style is provided
+    """
+    if style.lower() == "detailed":
+        prompt = ETHICS_COMPLIANCE_DETAILED
+    elif style.lower() == "concise":
+        prompt = ETHICS_COMPLIANCE_CONCISE
+    else:
+        raise ValueError(f"Invalid style '{style}'. Must be 'detailed' or 'concise'.")
+    
+    if guidelines:
+        return prompt.format(guidelines=guidelines)
+    
+    return prompt
+
