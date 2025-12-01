@@ -16,7 +16,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 
 # Default model configuration
-DEFAULT_MODEL_ID = "nvidia/nemotron-nano-12b-v2-vl:free"
+DEFAULT_MODEL_ID = "google/gemma-3-27b-it:free"
 
 # Alternative models available (free tier)
 ALTERNATIVE_MODELS = {
