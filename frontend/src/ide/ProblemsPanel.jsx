@@ -9,6 +9,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [fullAnalysis, setFullAnalysis] = useState('');
   const [showFullReport, setShowFullReport] = useState(false);
+  const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
 
   const extractSummary = (description) => {
     // Get first sentence or first part before bullet points
@@ -222,8 +223,11 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   };
 
   const analysisControlStyle = {
-    padding: '16px',
     borderBottom: '1px solid #3e3e42',
+    overflow: 'hidden',
+    transition: 'max-height 0.3s ease, padding 0.3s ease',
+    maxHeight: isControlsCollapsed ? '0' : '500px',
+    padding: isControlsCollapsed ? '0 16px' : '16px',
   };
 
   const fileInfoStyle = {
@@ -400,8 +404,44 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     borderRadius: '4px',
   };
 
+  const collapseHeaderStyle = {
+    padding: '12px 16px',
+    borderBottom: '1px solid #3e3e42',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    cursor: 'pointer',
+    backgroundColor: isControlsCollapsed ? '#1e1e1e' : '#2a2d2e',
+    transition: 'background-color 0.2s ease',
+  };
+
+  const collapseHeaderTitleStyle = {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#cccccc',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  };
+
   return (
     <div style={containerStyle}>
+      <div 
+        style={collapseHeaderStyle}
+        onClick={() => setIsControlsCollapsed(!isControlsCollapsed)}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d2e'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isControlsCollapsed ? '#1e1e1e' : '#2a2d2e'}
+      >
+        <div style={collapseHeaderTitleStyle}>
+          {isControlsCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+          <span>Analysis Controls</span>
+        </div>
+        {selectedFile && (
+          <div style={{ fontSize: '12px', color: '#858585' }}>
+            {selectedFile}
+          </div>
+        )}
+      </div>
       {/* Analysis control */}
       <div style={analysisControlStyle}>
         <div style={fileInfoStyle}>

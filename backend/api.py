@@ -1,161 +1,3 @@
-# """
-# Flask API for Ethics Compliance Analysis
-
-# This provides REST API endpoints for the frontend to call backend analysis functions.
-
-# Author: User
-# Date: November 30, 2025
-# """
-
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import traceback
-# import pandas as pd
-# from io import StringIO
-
-# from backend.main import analyze_ethics
-
-# app = Flask(__name__)
-# CORS(app)  # Enable CORS for frontend requests
-
-
-# @app.route('/api/analyze', methods=['POST'])
-# def analyze_code():
-#     """
-#     Analyze code/data for ethics compliance issues using LLM.
-    
-#     Expects JSON payload:
-#     {
-#         "file_name": "analysis.py",
-#         "file_content": "import pandas...",
-#         "project_description": "Data science project"
-#     }
-    
-#     Returns:
-#     {
-#         "success": true,
-#         "analysis": "Full LLM ethics analysis...",
-#         "issues": [...],
-#         "issues_found": 5
-#     }
-#     """
-#     try:
-#         data = request.get_json()
-        
-#         file_name = data.get('file_name', 'unknown_file')
-#         file_content = data.get('file_content', '')
-#         project_description = data.get('project_description', 'Data Science Project Analysis')
-        
-#         print(f"\n{'='*60}")
-#         print(f"🔍 Analyzing: {file_name}")
-#         print(f"📝 Project: {project_description}")
-#         print(f"{'='*60}\n")
-        
-#         # Determine file type
-#         file_ext = file_name.split('.')[-1].lower()
-        
-#         if file_ext == 'csv':
-#             # Parse CSV and pass directly to analyze_ethics
-#             df = pd.read_csv(StringIO(file_content))
-#             print(f"📊 DataFrame: {df.shape[0]} rows × {df.shape[1]} columns")
-            
-#             # Use your main function - it handles everything!
-#             result = analyze_ethics(
-#                 data=df,
-#                 project_description=project_description,
-#                 prompt_style="detailed"
-#             )
-            
-#         else:
-#             # For code files, create a DataFrame representation
-#             # This is a simple wrapper - you could enhance this
-#             df = pd.DataFrame({
-#                 'code_line': file_content.split('\n')
-#             })
-            
-#             result = analyze_ethics(
-#                 data=df,
-#                 project_description=f"{project_description} - Code file: {file_name}",
-#                 prompt_style="detailed"
-#             )
-        
-#         # Extract the LLM response
-#         llm_response = result['llm_response']
-        
-#         # Parse response to extract issues for UI
-#         issues = parse_llm_response_to_issues(llm_response)
-        
-#         print(f"✅ Analysis complete. Found {len(issues)} issues.\n")
-        
-#         return jsonify({
-#             'success': True,
-#             'analysis': llm_response,
-#             'issues': issues,
-#             'issues_found': len(issues)
-#         })
-    
-#     except Exception as e:
-#         print(f"❌ Error: {str(e)}")
-#         traceback.print_exc()
-#         return jsonify({
-#             'success': False,
-#             'error': str(e),
-#             'traceback': traceback.format_exc()
-#         }), 500
-
-
-# def parse_llm_response_to_issues(llm_response):
-#     """Parse LLM response to extract structured issues for the UI."""
-#     issues = []
-#     lines = llm_response.split('\n')
-    
-#     for line in lines:
-#         line_lower = line.lower()
-        
-#         # Determine severity
-#         severity = None
-#         if any(word in line_lower for word in ['violation', 'critical', 'severe', 'error']):
-#             severity = 'error'
-#         elif any(word in line_lower for word in ['warning', 'concern', 'risk', 'should']):
-#             severity = 'warning'
-#         elif any(word in line_lower for word in ['recommendation', 'consider', 'suggestion', 'info']):
-#             severity = 'info'
-        
-#         # Only add meaningful issues
-#         if severity and len(line.strip()) > 20:
-#             issues.append({
-#                 'line': 1,  # File-level issue
-#                 'severity': severity,
-#                 'message': line.strip()[:100],
-#                 'description': line.strip()
-#             })
-    
-#     return issues
-
-
-# @app.route('/api/health', methods=['GET'])
-# def health_check():
-#     """Health check endpoint"""
-#     return jsonify({
-#         'status': 'healthy',
-#         'service': 'Ethics Compliance API',
-#         'version': '1.0.0'
-#     })
-
-
-# if __name__ == '__main__':
-#     print("\n" + "="*60)
-#     print("🚀 DATA SEANCE - Ethics Compliance API")
-#     print("="*60)
-#     print(f"📍 Server: http://localhost:5000")
-#     print(f"💚 Health: http://localhost:5000/api/health")
-#     print(f"🔍 Analyze: POST http://localhost:5000/api/analyze")
-#     print("="*60 + "\n")
-#     print("✨ Using your complete backend workflow from main.py!")
-#     print("Press Ctrl+C to stop\n")
-    
-#     app.run(debug=True, port=5000, host='0.0.0.0')
-
 """
 Flask API for Ethics Compliance Analysis
 
@@ -333,7 +175,7 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
     # **Recommendation**:
     # - remedy 1
     
-    pattern = r'####\s+\*\*(\d+)\.\s+(.+?)\*\*\s*\n\*\*Status\*\*:\s*(.+?)\n\*\*Summary\*\*:\s*(.+?)\n\*\*Evidence\*\*:\s*\n(.+?)\n\*\*Recommendation\*\*:\s*\n(.+?)(?=\n---|####|\Z)'
+    pattern = r'####\s+\*\*(\d+)\.\s+(.+?)\*\*\s*\n\*\*Status\*\*:\s*(.+?)\n\*\*Description\*\*:\s*(.+?)\n\*\*Evidence\*\*:\s*\n(.+?)\n\*\*Recommendation\*\*:\s*\n(.+?)(?=\n---|####|\Z)'
     
     matches = re.finditer(pattern, llm_response, re.DOTALL)
     
@@ -341,7 +183,7 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
         section_num = match.group(1)
         section_name = match.group(2).strip()
         status = match.group(3).strip()
-        summary = match.group(4).strip()
+        description = match.group(4).strip()
         evidence = match.group(5).strip()
         recommendations = match.group(6).strip()
         
@@ -362,7 +204,7 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
         
         issues.append({
             'issue_name': f"{section_num}. {section_name}",
-            'issue_description': summary,
+            'issue_description': description,
             'issue_severity': severity,
             'issue_evidence': evidence,
             'possible_remedies': remedies[:5]
