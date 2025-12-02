@@ -19,14 +19,9 @@ from langchain_core.messages import HumanMessage
 import base64
 from IPython.display import display as dis
 from IPython.display import Image as im
-
-# from dotenv import load_dotenv
-# from pathlib import Path
-
-# # Configuration for environment variables
-# PROJECT_DIR = Path(__file__).parent.parent.parent.resolve()
-# ENV_DIR = PROJECT_DIR / '.env'
-# load_dotenv(ENV_DIR)  # Load environment variables from .env file
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.language_models import LanguageModelLike
+from pprint import pprint
 
 class SecretString(SecretStr):
     """
@@ -113,3 +108,110 @@ def make_text_generation_model_open_router(
         model_name=model_id,
         max_retries=max_retries
     )
+
+
+async def run_model(
+    llm: LanguageModelLike,
+    system_prompt: SystemMessage,
+    user_prompt: HumanMessage
+) -> dict:
+    """
+    Review and refine
+    """
+    messages = [system_prompt, user_prompt]
+
+    #printing input messages\
+    
+    print("getting answer ...\n")
+
+    # --- 1) Bind extra options for max introspection ---
+
+    llm_debug = llm.bind(
+        extra_body={
+            # Ask OpenRouter to include visible reasoning, if the model supports it.
+            "include_reasoning": True,
+            # Optional: some models use a reasoning block configuration:
+            # "reasoning": {"effort": "medium", "exclude": False},
+        },
+        logprobs=True,     # request logprobs if supported
+        top_logprobs=3,
+    )
+
+    # --- 2) Async streaming: smallest observable units as they arrive ---
+
+    # astream(...) yields ChatMessage-like chunks as they come in.
+    stream = llm_debug.astream(messages, stream_usage=True)
+
+    first_chunk = True
+    full_msg = None
+    final_usage = {}
+    all_chunks = []
+
+    async for chunk in stream:
+        # Keep them all to reconstruct full message later
+        all_chunks.append(chunk)
+
+        if first_chunk:
+            # First chunk seeds the accumulated AIMessage
+            full_msg = chunk
+            first_chunk = False
+
+        else:
+            # LangChain ChatMessageChunks support + to accumulate
+            full_msg += chunk
+
+        # --- Atomic-level output as it’s produced ---
+
+        # chunk.content is often the "delta" text; print it as soon as we see it
+        if getattr(chunk, "content", None):
+            print(chunk.content, end="", flush=True)
+
+        # Usage metadata can appear in special final chunk(s)
+        if getattr(chunk, "usage_metadata", None):
+            final_usage = chunk.usage_metadata
+
+    # Safety: if nothing came back
+    if full_msg is None:
+        print("\n[No chunks received from model]")
+        return
+
+    # print("\n\n======= FINAL MESSAGE CONTENT =======\n")
+    # print(full_msg.content)
+
+    # --- 3) Token usage summary ---
+
+    print("\n======= TOKEN USAGE (usage_metadata) =======")
+    if final_usage:
+        pprint(final_usage)
+    else:
+        print("No usage_metadata reported by this provider/model.")
+
+    # --- 4) Reasoning / thinking tokens (if exposed) ---
+
+    # OpenRouter / some backends store reasoning in additional_kwargs
+    reasoning = (full_msg.additional_kwargs or {}).get("reasoning")
+    if reasoning:
+        print("\n======= REASONING / THINKING CONTENT =======\n")
+        print(reasoning)
+
+    # Some backends tuck extra info into response_metadata
+    reasoning_meta = (full_msg.response_metadata or {}).get("reasoning_details")
+    if reasoning_meta:
+        print("\n======= RAW REASONING METADATA =======")
+        pprint(reasoning_meta)
+
+    # --- 5) Logprobs per token (if available) ---
+
+    logprobs = (full_msg.response_metadata or {}).get("logprobs")
+    if logprobs:
+        print("\n======= LOGPROBS =======")
+        pprint(logprobs)
+
+    # --- 6) Human-friendly LangChain view ---
+    return {
+        'full_message_content' : full_msg.content,
+        'usage' : final_usage,
+        'reasoning' : reasoning,
+        'reasoning' : reasoning_meta,
+        'logprobs' : logprobs
+    }

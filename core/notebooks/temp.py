@@ -10,14 +10,14 @@ load_env_vars()
 
 from core.config import PROJECT_DIR
 
-from core.llms import make_text_generation_model_open_router
+from core.backend.llms import make_text_generation_model_open_router
 import base64
 import pprint
 from langchain_core.messages import HumanMessage, SystemMessage
 from IPython.display import Image as im
 from IPython.display import display as dis
-from core.info_getters.sklearn_model_info import describe_sklearn_model
-from core.info_getters.pd_df_info import describe_pandas_dataset
+from core.backend.sklearn_model_info import describe_sklearn_model
+from core.backend.pd_df_info import describe_pandas_dataset
 from core.utils import pretty_messages_pretty
 import asyncio
 from pprint import pprint
@@ -29,7 +29,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 
-from core.xai.methods import ceteris_paribus_bytes_multi
+from core.backend.xai import ceteris_paribus_bytes_multi
 from core.utils import load_and_show_png_bytes
 
 import sys

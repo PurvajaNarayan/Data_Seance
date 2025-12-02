@@ -2,6 +2,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 DATA_DIR = PROJECT_DIR / 'data'
+AIGEN = nb_path = PROJECT_DIR / 'core' / 'AI_generated'
 
 def load_env_vars():
     from dotenv import load_dotenv
