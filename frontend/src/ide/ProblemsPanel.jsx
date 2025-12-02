@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, AlertCircle, AlertTriangle, Info, FileText, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Play, AlertCircle, AlertTriangle, Info, FileText, X, ChevronDown, ChevronRight, ThumbsUp, ThumbsDown, Lightbulb, Loader } from 'lucide-react';
 
 export function ProblemsPanel({ selectedFile, fileContents }) {
   const [problems, setProblems] = useState([]);
@@ -10,17 +10,14 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const [fullAnalysis, setFullAnalysis] = useState('');
   const [showFullReport, setShowFullReport] = useState(false);
   const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
+  
+  // Feedback state
+  const [feedback, setFeedback] = useState({});
+  const [loadingClarity, setLoadingClarity] = useState({});
 
   const extractSummary = (description) => {
-    // Get first sentence or first part before bullet points
     const sentences = description.split(/\.\s+/);
     return sentences[0] + (sentences.length > 1 ? '.' : '');
-  };
-
-  const extractEvidence = (description) => {
-    // Extract bullet points that look like evidence
-    const bullets = description.match(/\*[^*]+\*/g) || [];
-    return bullets.join(' ');
   };
 
   const handleStartAnalysis = async () => {
@@ -48,7 +45,6 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
       console.log('=== API RESPONSE ===', data);
 
       if (data.success) {
-        // Map the new structured format
         const mappedIssues = (data.issues || []).map(issue => ({
           line: 1,
           severity: issue.issue_severity,
@@ -63,6 +59,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
         setProblems(mappedIssues);
         setFullAnalysis(data.full_analysis || '');
         setHasAnalyzed(true);
+        setFeedback({}); // Reset feedback on new analysis
       } else {
         console.error('Backend analysis failed:', data.error);
         alert('Analysis failed: ' + data.error);
@@ -73,6 +70,72 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleGiveClarity = async (index) => {
+    const problem = problems[index];
+    setLoadingClarity(prev => ({ ...prev, [index]: true }));
+
+    try {
+      const response = await fetch('http://localhost:5001/api/request-details', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          issue_name: problem.name,
+          issue_description: problem.evidence,
+          file_name: selectedFile,
+          file_content: fileContents[selectedFile]
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update the problem with additional details
+        setProblems(prev => {
+          const updated = [...prev];
+          updated[index] = {
+            ...updated[index],
+            clarityDetails: data.additional_details,
+            hasClarity: true
+          };
+          return updated;
+        });
+
+        // Mark as having clarity in feedback
+        setFeedback(prev => ({
+          ...prev,
+          [index]: { ...prev[index], hasClarity: true }
+        }));
+      }
+    } catch (error) {
+      console.error('Error requesting clarity:', error);
+      alert('Could not get clarity. Please try again.');
+    } finally {
+      setLoadingClarity(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const handleThumbsUp = (index) => {
+    setFeedback(prev => ({
+      ...prev,
+      [index]: { 
+        ...prev[index], 
+        rating: prev[index]?.rating === 'up' ? null : 'up'
+      }
+    }));
+  };
+
+  const handleThumbsDown = (index) => {
+    setFeedback(prev => ({
+      ...prev,
+      [index]: { 
+        ...prev[index], 
+        rating: prev[index]?.rating === 'down' ? null : 'down'
+      }
+    }));
   };
 
   const downloadAnalysis = () => {
@@ -90,7 +153,6 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const formatText = (text) => {
     if (!text) return text;
     
-    // Replace **text** with styled spans
     const parts = text.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
@@ -115,7 +177,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           <div key={key++} style={{ 
             fontSize: '18px', 
             fontWeight: 'bold', 
-            color: '#4CAF50',
+            color: 'rgb(76, 175, 80)',
             marginTop: '16px',
             marginBottom: '8px'
           }}>
@@ -152,7 +214,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
             gap: '8px',
             lineHeight: '1.6'
           }}>
-            <span style={{ color: '#4CAF50' }}>•</span>
+            <span style={{ color: 'rgb(76, 175, 80)' }}>•</span>
             <span>{trimmed.substring(1).trim()}</span>
           </div>
         );
@@ -222,6 +284,26 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     height: '100%',
   };
 
+  const collapseHeaderStyle = {
+    padding: '12px 16px',
+    borderBottom: '1px solid #3e3e42',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    cursor: 'pointer',
+    backgroundColor: isControlsCollapsed ? '#1e1e1e' : '#2a2d2e',
+    transition: 'background-color 0.2s ease',
+  };
+
+  const collapseHeaderTitleStyle = {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#cccccc',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  };
+
   const analysisControlStyle = {
     borderBottom: '1px solid #3e3e42',
     overflow: 'hidden',
@@ -251,7 +333,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     color: '#cccccc',
   };
 
-  const buttonStyle = (disabled, color = '#4CAF50') => ({
+  const buttonStyle = (disabled, color = 'rgb(76, 175, 80)') => ({
     width: '100%',
     padding: '8px 16px',
     backgroundColor: disabled ? '#3e3e42' : color,
@@ -299,7 +381,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const successStateStyle = {
     padding: '16px',
     textAlign: 'center',
-    color: '#4CAF50',
+    color: 'rgb(76, 175, 80)',
     fontSize: '14px',
   };
 
@@ -311,7 +393,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     marginBottom: '8px',
     backgroundColor: isHovered || isExpanded ? '#2a2d2e' : '#1e1e1e',
     borderRadius: '4px',
-    border: isExpanded ? '1px solid #4CAF50' : '1px solid transparent',
+    border: isExpanded ? '1px solid rgb(76, 175, 80)' : '1px solid transparent',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     overflow: 'hidden',
@@ -345,6 +427,20 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     color: '#cccccc',
     lineHeight: '1.5',
   };
+
+  const feedbackButtonStyle = (active = false, color = '#6b7280') => ({
+    padding: '6px 12px',
+    backgroundColor: active ? color : 'transparent',
+    color: active ? '#ffffff' : '#858585',
+    border: `1px solid ${active ? color : '#3e3e42'}`,
+    borderRadius: '4px',
+    fontSize: '13px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    transition: 'all 0.2s ease',
+  });
 
   const modalOverlayStyle = {
     position: 'fixed',
@@ -381,7 +477,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const modalTitleStyle = {
     fontSize: '18px',
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: 'rgb(76, 175, 80)',
   };
 
   const modalBodyStyle = {
@@ -404,26 +500,6 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     borderRadius: '4px',
   };
 
-  const collapseHeaderStyle = {
-    padding: '12px 16px',
-    borderBottom: '1px solid #3e3e42',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    cursor: 'pointer',
-    backgroundColor: isControlsCollapsed ? '#1e1e1e' : '#2a2d2e',
-    transition: 'background-color 0.2s ease',
-  };
-
-  const collapseHeaderTitleStyle = {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#cccccc',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  };
-
   return (
     <div style={containerStyle}>
       <div 
@@ -442,6 +518,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           </div>
         )}
       </div>
+
       {/* Analysis control */}
       <div style={analysisControlStyle}>
         <div style={fileInfoStyle}>
@@ -462,7 +539,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           }}
           onMouseLeave={(e) => {
             if (!(!selectedFile || isAnalyzing)) {
-              e.currentTarget.style.backgroundColor = '#4CAF50';
+              e.currentTarget.style.backgroundColor = 'rgb(76, 175, 80)';
             }
           }}
         >
@@ -526,6 +603,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           <div style={problemsContainerStyle}>
             {problems.map((problem, index) => {
               const isExpanded = expandedIndex === index;
+              const rating = feedback[index]?.rating;
               
               return (
                 <div
@@ -586,11 +664,11 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
                       )}
 
                       {problem.remedies && problem.remedies.length > 0 && (
-                        <div>
+                        <div style={{ marginBottom: '12px' }}>
                           <div style={{
                             fontSize: '13px',
                             fontWeight: 'bold',
-                            color: '#4CAF50',
+                            color: 'rgb(76, 175, 80)',
                             marginBottom: '6px'
                           }}>
                             💡 Recommendations:
@@ -607,13 +685,131 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
                                 marginBottom: '6px',
                                 lineHeight: '1.5'
                               }}>
-                                <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>•</span>
+                                <span style={{ color: 'rgb(76, 175, 80)', fontWeight: 'bold' }}>•</span>
                                 <span>{remedy}</span>
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
+
+                      {/* Clarity Details from LLM */}
+                      {problem.clarityDetails && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            color: '#3b82f6',
+                            marginBottom: '6px'
+                          }}>
+                            💡 Clarity Details:
+                          </div>
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#cccccc',
+                            lineHeight: '1.6',
+                            paddingLeft: '12px',
+                            paddingTop: '8px',
+                            paddingBottom: '8px',
+                            paddingRight: '8px',
+                            borderLeft: '2px solid #3b82f6',
+                            backgroundColor: '#1a2332',
+                            borderRadius: '4px'
+                          }}>
+                            {formatText(problem.clarityDetails)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Feedback Actions */}
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        marginTop: '12px',
+                        paddingTop: '12px',
+                        borderTop: '1px solid #3e3e42'
+                      }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleGiveClarity(index);
+                          }}
+                          disabled={loadingClarity[index] || problem.hasClarity}
+                          style={{
+                            ...feedbackButtonStyle(problem.hasClarity, '#3b82f6'),
+                            opacity: (loadingClarity[index] || problem.hasClarity) ? 0.6 : 1,
+                            cursor: (loadingClarity[index] || problem.hasClarity) ? 'not-allowed' : 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!loadingClarity[index] && !problem.hasClarity) {
+                              e.currentTarget.style.borderColor = '#3b82f6';
+                              e.currentTarget.style.backgroundColor = '#1e293b';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!loadingClarity[index] && !problem.hasClarity) {
+                              e.currentTarget.style.borderColor = '#3e3e42';
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          {loadingClarity[index] ? (
+                            <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Lightbulb size={16} />
+                          )}
+                          {loadingClarity[index] ? 'Getting Clarity...' : problem.hasClarity ? 'Clarity Added' : 'Give Clarity'}
+                        </button>
+
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleThumbsUp(index);
+                            }}
+                            style={feedbackButtonStyle(rating === 'up', 'rgb(76, 175, 80)')}
+                            title="Helpful"
+                            onMouseEnter={(e) => {
+                              if (rating !== 'up') {
+                                e.currentTarget.style.borderColor = 'rgb(76, 175, 80)';
+                                e.currentTarget.style.backgroundColor = '#1a2e1a';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (rating !== 'up') {
+                                e.currentTarget.style.borderColor = '#3e3e42';
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }
+                            }}
+                          >
+                            <ThumbsUp size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleThumbsDown(index);
+                            }}
+                            style={feedbackButtonStyle(rating === 'down', '#ef4444')}
+                            title="Not helpful"
+                            onMouseEnter={(e) => {
+                              if (rating !== 'down') {
+                                e.currentTarget.style.borderColor = '#ef4444';
+                                e.currentTarget.style.backgroundColor = '#2e1a1a';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (rating !== 'down') {
+                                e.currentTarget.style.borderColor = '#3e3e42';
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }
+                            }}
+                          >
+                            <ThumbsDown size={16} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -646,6 +842,13 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

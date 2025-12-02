@@ -169,13 +169,13 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
     
     # Pattern: #### **1. Category Name**
     # **Status**: Violation
-    # **Summary**: ...
-    # **Evidence**:
-    # - point 1
+    # **Issue**: ...
+    # **Data Observations**:
+    # - observation 1
     # **Recommendation**:
     # - remedy 1
     
-    pattern = r'####\s+\*\*(\d+)\.\s+(.+?)\*\*\s*\n\*\*Status\*\*:\s*(.+?)\n\*\*Description\*\*:\s*(.+?)\n\*\*Evidence\*\*:\s*\n(.+?)\n\*\*Recommendation\*\*:\s*\n(.+?)(?=\n---|####|\Z)'
+    pattern = r'####\s+\*\*(\d+)\.\s+(.+?)\*\*\s*\n\*\*Status\*\*:\s*(.+?)\n\*\*Issue\*\*:\s*(.+?)\n\*\*Data Observations\*\*:\s*\n(.+?)\n\*\*Recommendation\*\*:\s*\n(.+?)(?=\n---|####|\Z)'
     
     matches = re.finditer(pattern, llm_response, re.DOTALL)
     
@@ -183,8 +183,8 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
         section_num = match.group(1)
         section_name = match.group(2).strip()
         status = match.group(3).strip()
-        description = match.group(4).strip()
-        evidence = match.group(5).strip()
+        issue = match.group(4).strip()
+        observations = match.group(5).strip()
         recommendations = match.group(6).strip()
         
         # Determine severity from status
@@ -204,9 +204,9 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
         
         issues.append({
             'issue_name': f"{section_num}. {section_name}",
-            'issue_description': description,
+            'issue_description': issue,
             'issue_severity': severity,
-            'issue_evidence': evidence,
+            'issue_evidence': observations,  # This is now "Data Observations"
             'possible_remedies': remedies[:5]
         })
     
