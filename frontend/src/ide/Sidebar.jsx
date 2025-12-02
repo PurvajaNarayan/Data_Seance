@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { ChevronRight, ChevronDown, FileCode, FileJson, FolderOpen, Folder, Upload } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileCode, FileJson, FolderOpen, Folder, Upload, FileText } from 'lucide-react';
 
 export function Sidebar({ activeView, onFileSelect, selectedFile, onFileUpload }) {
-  const [expandedFolders, setExpandedFolders] = useState(new Set(['src', 'data', 'project']));
+  const [expandedFolders, setExpandedFolders] = useState(new Set(['boston_housing']));
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -74,22 +74,27 @@ export function Sidebar({ activeView, onFileSelect, selectedFile, onFileUpload }
   const getFileType = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
     if (['py', 'js', 'jsx', 'ts', 'tsx'].includes(ext)) return 'code';
-    if (['json', 'csv', 'txt'].includes(ext)) return 'data';
+    if (['json', 'csv', 'txt', 'md'].includes(ext)) return 'data';
+    if (ext === 'pkl') return 'binary';
     return 'file';
   };
 
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
-    if (['py', 'js', 'jsx', 'ts', 'tsx'].includes(ext)) {
+    if (ext === 'py') {
       return { Icon: FileCode, color: '#3b8dd8' };
     }
-    if (['json', 'csv'].includes(ext)) {  // ← CHANGE THIS LINE
-      return { Icon: FileJson, color: '#4caf50' };
+    if (ext === 'csv') {
+      return { Icon: FileJson, color: 'rgb(76, 175, 80)' };
+    }
+    if (ext === 'pkl') {
+      return { Icon: FileCode, color: '#9b59b6' };
+    }
+    if (ext === 'md') {
+      return { Icon: FileText, color: '#858585' };
     }
     return { Icon: FileCode, color: '#cccccc' };
   };
-
-  // ... (keep all your existing styles)
 
   // Search View
   if (activeView === 'search') {
@@ -184,7 +189,7 @@ export function Sidebar({ activeView, onFileSelect, selectedFile, onFileUpload }
 
   const [uploadBtnHovered, setUploadBtnHovered] = useState(false);
 
-  // Styles (add these to your existing styles)
+  // Styles
   const sidebarStyle = {
     width: '256px',
     backgroundColor: '#252526',
@@ -349,22 +354,33 @@ export function Sidebar({ activeView, onFileSelect, selectedFile, onFileUpload }
       
       <div style={contentStyle}>
         <div style={contentInnerStyle}>
-          {/* Project folder */}
+          {/* Test Files */}
           <div style={spacerStyle}>
-            <FolderButton folder="project" label="data-science-project">
-              {/* src folder */}
-              <FolderButton folder="src" label="src">
-                <FileButton file="analysis.py" icon={FileCode} iconColor="#3b8dd8" />
-                <FileButton file="model.py" icon={FileCode} iconColor="#3b8dd8" />
-                <FileButton file="utils.py" icon={FileCode} iconColor="#3b8dd8" />
-              </FolderButton>
-              
-              {/* data folder */}
-              <FolderButton folder="data" label="data">
-                <FileButton file="dataset.csv" icon={FileJson} iconColor="#4caf50" />
-              </FolderButton>
-              
-              <FileButton file="requirements.txt" icon={FileCode} iconColor="#cccccc" />
+            <FileButton 
+              file="PIIdata.csv" 
+              icon={FileJson} 
+              iconColor="rgb(76, 175, 80)" 
+            />
+          </div>
+
+          {/* Boston Housing folder */}
+          <div style={spacerStyle}>
+            <FolderButton folder="boston_housing" label="boston_housing">
+              <FileButton 
+                file="boston_housing/boston_housing.py" 
+                icon={FileCode} 
+                iconColor="#3b8dd8" 
+              />
+              <FileButton 
+                file="boston_housing/boston_housing.pkl" 
+                icon={FileCode} 
+                iconColor="#9b59b6" 
+              />
+              <FileButton 
+                file="boston_housing/README.md" 
+                icon={FileText} 
+                iconColor="#858585" 
+              />
             </FolderButton>
           </div>
 

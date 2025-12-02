@@ -164,52 +164,20 @@ def analyze_code():
 #     }
 
 def parse_llm_to_structured_issues(llm_response, file_name, project_description):
-    """Parse structured LLM response with consistent format."""
+    """Parse structured LLM response - handles multiple format variations."""
     issues = []
     
-    # Pattern: #### **1. Category Name**
-    # **Status**: Violation
-    # **Issue**: ...
-    # **Data Observations**:
-    # - observation 1
-    # **Recommendation**:
-    # - remedy 1
+    # STEP 1: Clean up the response
+    llm_response = llm_response.strip()
+    if llm_response.startswith('```'):
+        llm_response = llm_response[3:].lstrip()
+        if llm_response.endswith('```'):
+            llm_response = llm_response[:-3].rstrip()
     
-    pattern = r'####\s+\*\*(\d+)\.\s+(.+?)\*\*\s*\n\*\*Status\*\*:\s*(.+?)\n\*\*Issue\*\*:\s*(.+?)\n\*\*Data Observations\*\*:\s*\n(.+?)\n\*\*Recommendation\*\*:\s*\n(.+?)(?=\n---|####|\Z)'
+    # STEP 2: Use fallback parser directly (more reliable for varied formats)
+    issues = parse_fallback(llm_response)
     
-    matches = re.finditer(pattern, llm_response, re.DOTALL)
-    
-    for match in matches:
-        section_num = match.group(1)
-        section_name = match.group(2).strip()
-        status = match.group(3).strip()
-        issue = match.group(4).strip()
-        observations = match.group(5).strip()
-        recommendations = match.group(6).strip()
-        
-        # Determine severity from status
-        if 'violation' in status.lower():
-            severity = 'error'
-        elif 'concern' in status.lower():
-            severity = 'warning'
-        else:
-            severity = 'info'
-        
-        # Extract remedy bullet points
-        remedies = [
-            line.strip().lstrip('- ').strip() 
-            for line in recommendations.split('\n') 
-            if line.strip().startswith('-')
-        ]
-        
-        issues.append({
-            'issue_name': f"{section_num}. {section_name}",
-            'issue_description': issue,
-            'issue_severity': severity,
-            'issue_evidence': observations,  # This is now "Data Observations"
-            'possible_remedies': remedies[:5]
-        })
-    
+    print(f"📊 Parsed {len(issues)} issues successfully")
     return {
         'success': True,
         'project_name': file_name,
@@ -217,6 +185,135 @@ def parse_llm_to_structured_issues(llm_response, file_name, project_description)
         'issues': issues,
         'full_analysis': llm_response
     }
+
+
+def parse_fallback(llm_response):
+    """Robust fallback parser that handles various formats."""
+    issues = []
+    
+    # Split by numbered sections (handles "1. Name" and "1. **Name**")
+    # Use lookahead to keep the number in the split
+    parts = re.split(r'\n(?=\d+\.\s+)', llm_response)
+    
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+            
+        # Check if this part starts with a number
+        number_match = re.match(r'^(\d+)\.\s+', part)
+        if not number_match:
+            continue
+            
+        try:
+            section_num = number_match.group(1)
+            
+            # Extract section name (first line, remove markdown)
+            first_line_match = re.match(r'^\d+\.\s+\*{0,2}(.+?)\*{0,2}\s*\n', part)
+            section_name = first_line_match.group(1).strip() if first_line_match else 'Unknown'
+            
+            # Extract status (case-insensitive, handle bold)
+            status_match = re.search(r'Status:\s*\*{0,2}(.+?)\*{0,2}\s*\n', part, re.IGNORECASE)
+            status = status_match.group(1).strip() if status_match else 'Unknown'
+            
+            # Determine severity
+            status_lower = status.lower()
+            if 'violation' in status_lower:
+                severity = 'error'
+            elif 'concern' in status_lower:
+                severity = 'warning'
+            else:
+                severity = 'info'
+            
+            # Extract description
+            desc_match = re.search(r'Description:\s*(.+?)(?=\n\s*Evidence:|\Z)', part, re.DOTALL | re.IGNORECASE)
+            description = desc_match.group(1).strip() if desc_match else 'No description available'
+            
+            # Extract evidence bullets (stop at Recommendation or ---)
+            evidence_match = re.search(
+                r'Evidence:\s*\n(.+?)(?=\n\s*\*{0,2}Recommendation|\n\s*---|\Z)', 
+                part, 
+                re.DOTALL | re.IGNORECASE
+            )
+            if evidence_match:
+                evidence_text = evidence_match.group(1)
+                evidence_lines = []
+                for line in evidence_text.split('\n'):
+                    line = line.strip()
+                    # Include lines starting with '-' and exclude Coherence/Recommendation lines
+                    if line.startswith('-') and not any(
+                        skip in line.lower() 
+                        for skip in ['coherence', 'recommendation', 'cross-cutting']
+                    ):
+                        evidence_lines.append(line.lstrip('- ').strip())
+                evidence = '\n'.join(evidence_lines) if evidence_lines else evidence_text.strip()
+            else:
+                evidence = 'No evidence provided'
+            
+            # Extract recommendations (handle **Recommendation**: format)
+            rec_match = re.search(
+                r'\*{0,2}Recommendation\*{0,2}:\s*(.+?)(?=\n\s*---|\n\d+\.|\Z)', 
+                part, 
+                re.DOTALL | re.IGNORECASE
+            )
+            if rec_match:
+                rec_text = rec_match.group(1).strip()
+                remedies = []
+                
+                # Look for bullet points first
+                for line in rec_text.split('\n'):
+                    line = line.strip()
+                    if line.startswith('-'):
+                        remedies.append(line.lstrip('- ').strip())
+                
+                # If no bullets, check for priority-prefixed recommendations
+                if not remedies:
+                    # Match patterns like: (Immediate) Do this. (Short-term) Do that.
+                    priority_pattern = r'\((?:Immediate|Short-term|Long-term)\)\s*([^(]+?)(?=\((?:Immediate|Short-term|Long-term)\)|\Z)'
+                    priority_matches = re.finditer(priority_pattern, rec_text, re.DOTALL | re.IGNORECASE)
+                    for match in priority_matches:
+                        remedy = match.group(1).strip()
+                        if remedy:
+                            remedies.append(remedy)
+                
+                # If still no remedies, use whole text (cleaned)
+                if not remedies and rec_text:
+                    # Clean up and take first meaningful sentence
+                    cleaned = rec_text.replace('\n', ' ').strip()
+                    if len(cleaned) > 10:
+                        remedies = [cleaned[:200]]  # Limit length
+                        
+            else:
+                remedies = []
+            
+            if not remedies:
+                remedies = ['See full analysis for recommendations']
+            
+            issues.append({
+                'issue_name': f"{section_num}. {section_name}",
+                'issue_description': description,
+                'issue_severity': severity,
+                'issue_evidence': evidence,
+                'possible_remedies': remedies[:5]
+            })
+            
+        except Exception as e:
+            print(f"❌ Error parsing section {section_num}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    if not issues:
+        print("⚠️ Parser found no issues. Returning generic issue.")
+        return [{
+            'issue_name': 'Analysis Complete',
+            'issue_description': 'Ethics analysis completed. See full report for details.',
+            'issue_severity': 'info',
+            'issue_evidence': 'Analysis was performed but could not be parsed into structured format.',
+            'possible_remedies': ['Review the complete analysis report']
+        }]
+    
+    return issues
 
 
 def extract_severity(content):

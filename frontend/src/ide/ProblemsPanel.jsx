@@ -14,6 +14,8 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   // Feedback state
   const [feedback, setFeedback] = useState({});
   const [loadingClarity, setLoadingClarity] = useState({});
+  const [reportClarity, setReportClarity] = useState(null);
+  const [loadingReportClarity, setLoadingReportClarity] = useState(false);
 
   const extractSummary = (description) => {
     const sentences = description.split(/\.\s+/);
@@ -138,6 +140,36 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     }));
   };
 
+  const handleGiveReportClarity = async () => {
+    setLoadingReportClarity(true);
+
+    try {
+      const response = await fetch('http://localhost:5001/api/request-details', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          issue_name: 'Full Ethics Compliance Report',
+          issue_description: fullAnalysis,
+          file_name: selectedFile,
+          file_content: fileContents[selectedFile]
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setReportClarity(data.additional_details);
+      }
+    } catch (error) {
+      console.error('Error requesting report clarity:', error);
+      alert('Could not get clarity. Please try again.');
+    } finally {
+      setLoadingReportClarity(false);
+    }
+  };
+
   const downloadAnalysis = () => {
     const blob = new Blob([fullAnalysis], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -177,7 +209,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           <div key={key++} style={{ 
             fontSize: '18px', 
             fontWeight: 'bold', 
-            color: 'rgb(76, 175, 80)',
+            color: '#4CAF50',
             marginTop: '16px',
             marginBottom: '8px'
           }}>
@@ -214,7 +246,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
             gap: '8px',
             lineHeight: '1.6'
           }}>
-            <span style={{ color: 'rgb(76, 175, 80)' }}>•</span>
+            <span style={{ color: '#4CAF50' }}>•</span>
             <span>{trimmed.substring(1).trim()}</span>
           </div>
         );
@@ -333,7 +365,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     color: '#cccccc',
   };
 
-  const buttonStyle = (disabled, color = 'rgb(76, 175, 80)') => ({
+  const buttonStyle = (disabled, color = '#4CAF50') => ({
     width: '100%',
     padding: '8px 16px',
     backgroundColor: disabled ? '#3e3e42' : color,
@@ -381,7 +413,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const successStateStyle = {
     padding: '16px',
     textAlign: 'center',
-    color: 'rgb(76, 175, 80)',
+    color: '#4CAF50',
     fontSize: '14px',
   };
 
@@ -393,7 +425,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     marginBottom: '8px',
     backgroundColor: isHovered || isExpanded ? '#2a2d2e' : '#1e1e1e',
     borderRadius: '4px',
-    border: isExpanded ? '1px solid rgb(76, 175, 80)' : '1px solid transparent',
+    border: isExpanded ? '1px solid #4CAF50' : '1px solid transparent',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     overflow: 'hidden',
@@ -477,7 +509,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const modalTitleStyle = {
     fontSize: '18px',
     fontWeight: 'bold',
-    color: 'rgb(76, 175, 80)',
+    color: '#4CAF50',
   };
 
   const modalBodyStyle = {
@@ -539,7 +571,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           }}
           onMouseLeave={(e) => {
             if (!(!selectedFile || isAnalyzing)) {
-              e.currentTarget.style.backgroundColor = 'rgb(76, 175, 80)';
+              e.currentTarget.style.backgroundColor = '#4CAF50';
             }
           }}
         >
@@ -668,7 +700,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
                           <div style={{
                             fontSize: '13px',
                             fontWeight: 'bold',
-                            color: 'rgb(76, 175, 80)',
+                            color: '#4CAF50',
                             marginBottom: '6px'
                           }}>
                             💡 Recommendations:
@@ -685,7 +717,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
                                 marginBottom: '6px',
                                 lineHeight: '1.5'
                               }}>
-                                <span style={{ color: 'rgb(76, 175, 80)', fontWeight: 'bold' }}>•</span>
+                                <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>•</span>
                                 <span>{remedy}</span>
                               </div>
                             ))}
@@ -769,11 +801,11 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
                               e.stopPropagation();
                               handleThumbsUp(index);
                             }}
-                            style={feedbackButtonStyle(rating === 'up', 'rgb(76, 175, 80)')}
+                            style={feedbackButtonStyle(rating === 'up', '#4CAF50')}
                             title="Helpful"
                             onMouseEnter={(e) => {
                               if (rating !== 'up') {
-                                e.currentTarget.style.borderColor = 'rgb(76, 175, 80)';
+                                e.currentTarget.style.borderColor = '#4CAF50';
                                 e.currentTarget.style.backgroundColor = '#1a2e1a';
                               }
                             }}
@@ -827,17 +859,100 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
               <div style={modalTitleStyle}>
                 Ethics Compliance Report - {selectedFile}
               </div>
-              <button
-                onClick={() => setShowFullReport(false)}
-                style={modalCloseButtonStyle}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d2e'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                <X size={20} />
-              </button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGiveReportClarity();
+                  }}
+                  disabled={loadingReportClarity || reportClarity}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: reportClarity ? 'rgb(76, 175, 80)' : 'transparent',
+                    color: reportClarity ? '#ffffff' : '#858585',
+                    border: `1px solid ${reportClarity ? 'rgb(76, 175, 80)' : '#3e3e42'}`,
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    cursor: (loadingReportClarity || reportClarity) ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                    opacity: (loadingReportClarity || reportClarity) ? 0.6 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loadingReportClarity && !reportClarity) {
+                      e.currentTarget.style.borderColor = 'rgb(76, 175, 80)';
+                      e.currentTarget.style.backgroundColor = '#1a2e1a';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loadingReportClarity && !reportClarity) {
+                      e.currentTarget.style.borderColor = '#3e3e42';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }
+                  }}
+                >
+                  {loadingReportClarity ? (
+                    <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Lightbulb size={16} />
+                  )}
+                  {loadingReportClarity ? 'Getting...' : reportClarity ? 'Added' : 'Give Clarity'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowFullReport(false);
+                    setReportClarity(null);
+                  }}
+                  style={modalCloseButtonStyle}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d2e'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             <div style={modalBodyStyle}>
               {formatAnalysis(fullAnalysis)}
+              
+              {/* Report Clarity Section */}
+              {reportClarity && (
+                <>
+                  <hr style={{ 
+                    border: 'none', 
+                    borderTop: '2px solid rgb(76, 175, 80)',
+                    margin: '24px 0'
+                  }} />
+                  <div style={{
+                    marginTop: '16px',
+                    padding: '16px',
+                    backgroundColor: '#1a2e1a',
+                    borderRadius: '6px',
+                    border: '1px solid rgb(76, 175, 80)'
+                  }}>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      color: 'rgb(76, 175, 80)',
+                      marginBottom: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <Lightbulb size={20} />
+                      Additional Clarity & Guidance
+                    </div>
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#cccccc',
+                      lineHeight: '1.6'
+                    }}>
+                      {formatAnalysis(reportClarity)}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

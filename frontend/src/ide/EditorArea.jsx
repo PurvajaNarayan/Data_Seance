@@ -2,110 +2,148 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 const initialFileContents = {
-  'analysis.py': `import pandas as pd
+  // Test file - PII data
+  'PIIdata.csv': `Customer_name,Customer_phone_number,Customer_landmark
+John Smith,555-0101,Central Park
+Maria Garcia,555-0102,Empire State Building
+Ahmed Hassan,555-0103,Brooklyn Bridge
+Li Wei,555-0104,Times Square
+Sarah Johnson,555-0105,Statue of Liberty
+Raj Patel,555-0106,Grand Central
+Elena Rodriguez,555-0107,Madison Square
+Yuki Tanaka,555-0108,Wall Street
+Mohammed Ali,555-0109,Rockefeller Center`,
+
+  // Boston Housing dataset files
+  'boston_housing/boston_housing.py': `"""
+Boston Housing Price Prediction
+Dataset: Boston Housing Dataset (scikit-learn)
+"""
+
+import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+from sklearn.datasets import load_boston
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+import pickle
 
-# Load dataset
-df = pd.read_csv('data/dataset.csv')
+def load_data():
+    """Load Boston housing dataset"""
+    boston = load_boston()
+    df = pd.DataFrame(boston.data, columns=boston.feature_names)
+    df['MEDV'] = boston.target
+    return df, boston
 
-# Display basic information
-print(f"Dataset shape: {df.shape}")
-print(df.head())
+def train_model(X_train, y_train):
+    """Train linear regression model"""
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    return model
 
-# Data preprocessing
-X = df.drop('target', axis=1)
-y = df['target']
-
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-# Train model
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-
-# Evaluate
-train_score = model.score(X_train, y_train)
-test_score = model.score(X_test, y_test)
-
-print(f"Training accuracy: {train_score:.4f}")
-print(f"Testing accuracy: {test_score:.4f}")
-
-# Feature importance
-feature_importance = pd.DataFrame({
-    'feature': X.columns,
-    'importance': model.feature_importances_
-}).sort_values('importance', ascending=False)
-
-print("\\nTop 5 important features:")
-print(feature_importance.head())`,
-
-  'model.py': `from sklearn.base import BaseEstimator, TransformerMixin
-import numpy as np
-
-class CustomPreprocessor(BaseEstimator, TransformerMixin):
-    """Custom preprocessor for data transformation"""
+def evaluate_model(model, X_test, y_test):
+    """Evaluate model performance"""
+    y_pred = model.predict(X_test)
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
     
-    def __init__(self, normalize=True):
-        self.normalize = normalize
-        self.mean_ = None
-        self.std_ = None
-    
-    def fit(self, X, y=None):
-        if self.normalize:
-            self.mean_ = np.mean(X, axis=0)
-            self.std_ = np.std(X, axis=0)
-        return self
-    
-    def transform(self, X):
-        if self.normalize and self.mean_ is not None:
-            X_transformed = (X - self.mean_) / (self.std_ + 1e-8)
-            return X_transformed
-        return X`,
+    print(f"Mean Squared Error: {mse:.2f}")
+    print(f"R² Score: {r2:.2f}")
+    return mse, r2
 
-  'utils.py': `import pandas as pd
-import numpy as np
+def save_model(model, filepath='boston_housing/boston_housing.pkl'):
+    """Save trained model to pickle file"""
+    with open(filepath, 'wb') as f:
+        pickle.dump(model, f)
+    print(f"Model saved to {filepath}")
 
-def load_and_clean_data(filepath):
-    """Load and perform basic cleaning on dataset"""
-    df = pd.read_csv(filepath)
+def main():
+    # Load data
+    df, boston = load_data()
+    print(f"Dataset shape: {df.shape}")
+    print("\\nFeature names:", boston.feature_names.tolist())
+    print("\\nTarget: MEDV (Median value of homes in $1000s)")
     
-    # Remove duplicates
-    df = df.drop_duplicates()
+    # Prepare features and target
+    X = df.drop('MEDV', axis=1)
+    y = df['MEDV']
     
-    # Handle missing values
-    df = df.fillna(df.mean(numeric_only=True))
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
     
-    return df
+    # Train model
+    print("\\nTraining model...")
+    model = train_model(X_train, y_train)
+    
+    # Evaluate
+    print("\\nModel Evaluation:")
+    evaluate_model(model, X_test, y_test)
+    
+    # Feature importance
+    feature_importance = pd.DataFrame({
+        'feature': boston.feature_names,
+        'coefficient': model.coef_
+    }).sort_values('coefficient', key=abs, ascending=False)
+    
+    print("\\nTop 5 Most Important Features:")
+    print(feature_importance.head())
+    
+    # Save model
+    save_model(model)
 
-def calculate_statistics(data):
-    """Calculate basic statistics"""
-    stats = {
-        'mean': np.mean(data),
-        'median': np.median(data),
-        'std': np.std(data),
-        'min': np.min(data),
-        'max': np.max(data)
-    }
-    return stats`,
+if __name__ == "__main__":
+    main()`,
 
-  'requirements.txt': `pandas==2.0.0
-numpy==1.24.0
-matplotlib==3.7.0
-scikit-learn==1.2.2
-jupyter==1.0.0
-seaborn==0.12.0`,
+  'boston_housing/boston_housing.pkl': `# This is a binary pickle file
+# To load: 
+# import pickle
+# with open('boston_housing/boston_housing.pkl', 'rb') as f:
+#     model = pickle.load(f)
+# 
+# Note: This is a placeholder. The actual .pkl file would be 
+# generated by running boston_housing.py and contains a 
+# trained scikit-learn LinearRegression model.
+#
+# File format: Binary pickle (not human-readable)`,
 
-  'dataset.csv': `feature1,feature2,feature3,target
-0.5,1.2,3.4,0
-1.2,0.8,2.1,1
-0.9,1.5,4.2,0
-1.8,0.5,1.9,1
-0.7,1.1,3.8,0`
+  'boston_housing/README.md': `# Boston Housing Price Prediction
+
+## Dataset Description
+The Boston Housing dataset contains information about housing in Boston suburbs.
+
+### Features (13 total):
+- **CRIM**: Per capita crime rate
+- **ZN**: Proportion of residential land zoned for large lots
+- **INDUS**: Proportion of non-retail business acres
+- **CHAS**: Charles River dummy variable (1 if tract bounds river; 0 otherwise)
+- **NOX**: Nitric oxides concentration (parts per 10 million)
+- **RM**: Average number of rooms per dwelling
+- **AGE**: Proportion of owner-occupied units built before 1940
+- **DIS**: Weighted distances to employment centers
+- **RAD**: Index of accessibility to radial highways
+- **TAX**: Property tax rate per $10,000
+- **PTRATIO**: Pupil-teacher ratio by town
+- **B**: 1000(Bk - 0.63)² where Bk is the proportion of Black residents
+- **LSTAT**: Percentage of lower status population
+
+### Target:
+- **MEDV**: Median value of owner-occupied homes in $1000s
+
+## Files
+- \`boston_housing.py\`: Main script for training and evaluation
+- \`boston_housing.pkl\`: Trained model (generated after running the script)
+
+## Usage
+\`\`\`python
+python boston_housing/boston_housing.py
+\`\`\`
+
+## Ethical Considerations
+⚠️ **Important**: This dataset contains the 'B' feature which relates to racial demographics. 
+This raises ethical concerns about potential bias and discrimination in housing price predictions.
+Modern usage of this dataset should carefully consider these implications.`
 };
 
 export function EditorArea({ openFile, dataSciencePanelOpen, onFileContentsChange, externalFileContents }) {
