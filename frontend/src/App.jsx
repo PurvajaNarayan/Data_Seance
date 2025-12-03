@@ -8,7 +8,7 @@ import { TopMenuBar } from './ide/TopMenuBar';
 
 export default function App() {
   const [activeView, setActiveView] = useState('explorer');
-  const [openFile, setOpenFile] = useState('analysis.py');
+  const [openFile, setOpenFile] = useState('PIIdata.csv');
   const [dataSciencePanelOpen, setDataSciencePanelOpen] = useState(true);
   const [fileContents, setFileContents] = useState({});
   const [uploadedFileContents, setUploadedFileContents] = useState({});
@@ -74,6 +74,7 @@ export default function App() {
             onClose={() => setDataSciencePanelOpen(false)}
             selectedFile={openFile}
             fileContents={{ ...fileContents, ...uploadedFileContents }}
+            onFileSelect={setOpenFile} 
           />
         )}
       </div>

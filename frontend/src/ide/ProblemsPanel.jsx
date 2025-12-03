@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, AlertCircle, AlertTriangle, Info, FileText, X, ChevronDown, ChevronRight, ThumbsUp, ThumbsDown, Lightbulb, Loader } from 'lucide-react';
 
-export function ProblemsPanel({ selectedFile, fileContents }) {
+export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const [problems, setProblems] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
@@ -10,6 +10,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const [fullAnalysis, setFullAnalysis] = useState('');
   const [showFullReport, setShowFullReport] = useState(false);
   const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
+  const [localSelectedFile, setLocalSelectedFile] = useState(selectedFile);
   
   // Feedback state
   const [feedback, setFeedback] = useState({});
@@ -17,13 +18,32 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   const [reportClarity, setReportClarity] = useState(null);
   const [loadingReportClarity, setLoadingReportClarity] = useState(false);
 
+  // Get list of all available files
+  const availableFiles = Object.keys(fileContents);
+
+  // Sync with external selectedFile changes
+  useEffect(() => {
+    if (selectedFile) {
+      setLocalSelectedFile(selectedFile);
+    }
+  }, [selectedFile]);
+
+  const handleFileChange = (e) => {
+    const newFile = e.target.value;
+    setLocalSelectedFile(newFile);
+    if (onFileSelect) {
+      onFileSelect(newFile);
+    }
+  };
+
   const extractSummary = (description) => {
     const sentences = description.split(/\.\s+/);
     return sentences[0] + (sentences.length > 1 ? '.' : '');
   };
 
   const handleStartAnalysis = async () => {
-    if (!selectedFile || !fileContents[selectedFile]) {
+    const fileToAnalyze = localSelectedFile || selectedFile;
+    if (!fileToAnalyze || !fileContents[fileToAnalyze]) {
       return;
     }
 
@@ -36,8 +56,8 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          file_name: selectedFile,
-          file_content: fileContents[selectedFile],
+          file_name: fileToAnalyze,
+          file_content: fileContents[fileToAnalyze],
           project_description: 'Data Science Project Analysis'
         })
       });
@@ -76,6 +96,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
 
   const handleGiveClarity = async (index) => {
     const problem = problems[index];
+    const fileToUse = localSelectedFile || selectedFile;
     setLoadingClarity(prev => ({ ...prev, [index]: true }));
 
     try {
@@ -87,8 +108,8 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
         body: JSON.stringify({
           issue_name: problem.name,
           issue_description: problem.evidence,
-          file_name: selectedFile,
-          file_content: fileContents[selectedFile]
+          file_name: fileToUse,
+          file_content: fileContents[fileToUse]
         })
       });
 
@@ -141,6 +162,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   };
 
   const handleGiveReportClarity = async () => {
+    const fileToUse = localSelectedFile || selectedFile;
     setLoadingReportClarity(true);
 
     try {
@@ -152,8 +174,8 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
         body: JSON.stringify({
           issue_name: 'Full Ethics Compliance Report',
           issue_description: fullAnalysis,
-          file_name: selectedFile,
-          file_content: fileContents[selectedFile]
+          file_name: fileToUse,
+          file_content: fileContents[fileToUse]
         })
       });
 
@@ -171,11 +193,12 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
   };
 
   const downloadAnalysis = () => {
+    const fileName = localSelectedFile || selectedFile || 'analysis';
     const blob = new Blob([fullAnalysis], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ethics-analysis-${selectedFile}.txt`;
+    a.download = `ethics-analysis-${fileName}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -365,6 +388,24 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
     color: '#cccccc',
   };
 
+  const fileDropdownStyle = {
+    width: '100%',
+    fontSize: '14px',
+    padding: '8px 12px',
+    backgroundColor: '#1e1e1e',
+    border: '1px solid #3e3e42',
+    borderRadius: '4px',
+    color: '#cccccc',
+    cursor: 'pointer',
+    outline: 'none',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 8px center',
+    paddingRight: '32px',
+    transition: 'border-color 0.2s ease',
+  };
+
   const buttonStyle = (disabled, color = '#4CAF50') => ({
     width: '100%',
     padding: '8px 16px',
@@ -544,9 +585,9 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           {isControlsCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
           <span>Analysis Controls</span>
         </div>
-        {selectedFile && (
+        {(localSelectedFile || selectedFile) && (
           <div style={{ fontSize: '12px', color: '#858585' }}>
-            {selectedFile}
+            {localSelectedFile || selectedFile}
           </div>
         )}
       </div>
@@ -555,9 +596,18 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
       <div style={analysisControlStyle}>
         <div style={fileInfoStyle}>
           <div style={labelStyle}>Selected File:</div>
-          <div style={fileNameStyle}>
-            {selectedFile || 'No file selected'}
-          </div>
+          <select
+            value={localSelectedFile || ''}
+            onChange={handleFileChange}
+            style={fileDropdownStyle}
+          >
+            <option value="" disabled>Choose a file...</option>
+            {availableFiles.map((file) => (
+              <option key={file} value={file}>
+                {file}
+              </option>
+            ))}
+          </select>
         </div>
         
         <button
@@ -857,7 +907,7 @@ export function ProblemsPanel({ selectedFile, fileContents }) {
           <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
             <div style={modalHeaderStyle}>
               <div style={modalTitleStyle}>
-                Ethics Compliance Report - {selectedFile}
+                Ethics Compliance Report - {localSelectedFile || selectedFile}
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <button
