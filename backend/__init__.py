@@ -1,5 +1,5 @@
 """
-ANEW - AI Ethics Compliance Analysis System
+Data Seance - AI Ethics Compliance Analysis System
 
 A refactored, modular system for analyzing ML models and datasets for ethics
 compliance violations using LLM-based evaluation with explainability methods.
@@ -10,12 +10,10 @@ Main modules:
 - llm_helpers: XAI methods and info getters (ICE, LIME, model/data descriptions)
 - prompts: Ethics compliance system prompts
 
-Author: User
-Date: November 28, 2025
 """
 
 from .main import (
-    analyze_ethics,  # NEW: Unified function for all cases
+    analyze_ethics,  
     analyze_ethics_compliance,
     analyze_ethics_compliance_simple,
     save_analysis_report
@@ -57,7 +55,7 @@ __version__ = "1.0.0"
 
 __all__ = [
     # Main functions
-    "analyze_ethics",  # NEW: Unified smart function
+    "analyze_ethics",  
     "analyze_ethics_compliance",
     "analyze_ethics_compliance_simple",
     "save_analysis_report",

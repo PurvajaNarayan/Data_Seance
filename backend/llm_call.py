@@ -4,8 +4,6 @@ LLM Configuration and Calling Functions
 This module provides LLM configuration and calling utilities extracted from core/llms.py.
 It handles OpenRouter API integration and provides functions to create and call language models.
 
-Author: User
-Date: November 28, 2025
 """
 
 import os

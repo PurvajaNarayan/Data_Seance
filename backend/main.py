@@ -4,8 +4,6 @@ Main Ethics Compliance Analysis Entry Point
 This module provides the primary function for running ethics compliance analysis
 on ML models and datasets using LLM-based evaluation.
 
-Author: User
-Date: November 28, 2025
 """
 
 from pathlib import Path

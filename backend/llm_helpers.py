@@ -6,8 +6,6 @@ for LLM-based ethics compliance analysis. It includes:
 1. XAI (Explainable AI) methods - ICE plots and LIME for model explainability
 2. Info Getters - Convert pandas DataFrames and sklearn models to LLM-readable text
 
-Author: User
-Date: November 28, 2025
 """
 
 from __future__ import annotations

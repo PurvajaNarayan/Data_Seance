@@ -85,7 +85,6 @@ For violations/concerns, provide:
 6. Separate each category with `---`
 """
 
-# Original detailed prompt (kept for backward compatibility)
 ETHICS_COMPLIANCE_DETAILED = """## Persona
 
 You are the Ethics Compliance Agent for data science and AI projects inside a corporation.
@@ -143,7 +142,6 @@ Produce an analysis that allows a human reviewer to quickly see:
 {guidelines}
 """
 
-# Concise/Brief Ethics Compliance Prompt
 ETHICS_COMPLIANCE_CONCISE = """You are an Ethics Compliance Agent for data science/ML projects.
 
 Inputs:
