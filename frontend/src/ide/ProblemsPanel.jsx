@@ -11,6 +11,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const [showFullReport, setShowFullReport] = useState(false);
   const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
   const [localSelectedFile, setLocalSelectedFile] = useState(selectedFile);
+  const [cacheKey, setCacheKey] = useState(null);
   
   // Feedback state
   const [feedback, setFeedback] = useState({});
@@ -18,10 +19,8 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const [reportClarity, setReportClarity] = useState(null);
   const [loadingReportClarity, setLoadingReportClarity] = useState(false);
 
-  // Get list of all available files
   const availableFiles = Object.keys(fileContents);
 
-  // Sync with external selectedFile changes
   useEffect(() => {
     if (selectedFile) {
       setLocalSelectedFile(selectedFile);
@@ -72,16 +71,18 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
           severity: issue.issue_severity,
           name: issue.issue_name,
           summary: extractSummary(issue.issue_description),
-          evidence: issue.issue_description,
-          remedies: issue.possible_remedies || []
+          evidence: issue.issue_evidence,
+          remedies: issue.possible_remedies || [],
+          rawIssue: issue // Store original for attribute expansion
         }));
         
         console.log('Mapped Issues:', mappedIssues);
         
         setProblems(mappedIssues);
         setFullAnalysis(data.full_analysis || '');
+        setCacheKey(data.cache_key); // Store cache key for attribute expansion
         setHasAnalyzed(true);
-        setFeedback({}); // Reset feedback on new analysis
+        setFeedback({});
       } else {
         console.error('Backend analysis failed:', data.error);
         alert('Analysis failed: ' + data.error);
@@ -100,38 +101,55 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     setLoadingClarity(prev => ({ ...prev, [index]: true }));
 
     try {
+      // Prepare the request payload
+      const requestPayload = {
+        issue_name: problem.name,
+        issue_description: problem.evidence || problem.summary || 'No description available',
+        issue_evidence: problem.rawIssue?.issue_evidence || problem.evidence || '',
+        file_name: fileToUse,
+        file_content: fileContents[fileToUse],
+        cache_key: cacheKey // Pass cache key for better context
+      };
+
+      console.log('📤 Sending clarity request:', {
+        issue_name: requestPayload.issue_name,
+        has_cache_key: !!cacheKey,
+        has_evidence: !!requestPayload.issue_evidence
+      });
+
       const response = await fetch('http://localhost:5001/api/request-details', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          issue_name: problem.name,
-          issue_description: problem.evidence,
-          file_name: fileToUse,
-          file_content: fileContents[fileToUse]
-        })
+        body: JSON.stringify(requestPayload)
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Update the problem with additional details
+        // Parse the structured expansion
+        const parsedExpansion = parseAttributeExpansion(data.additional_details);
+        
+        // Update the problem with structured details
         setProblems(prev => {
           const updated = [...prev];
           updated[index] = {
             ...updated[index],
             clarityDetails: data.additional_details,
+            structuredExpansion: parsedExpansion,
             hasClarity: true
           };
           return updated;
         });
 
-        // Mark as having clarity in feedback
         setFeedback(prev => ({
           ...prev,
           [index]: { ...prev[index], hasClarity: true }
         }));
+      } else {
+        console.error('Backend returned error:', data.error);
+        alert(`Failed to get clarity: ${data.error}`);
       }
     } catch (error) {
       console.error('Error requesting clarity:', error);
@@ -139,6 +157,97 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     } finally {
       setLoadingClarity(prev => ({ ...prev, [index]: false }));
     }
+  };
+
+  const parseAttributeExpansion = (text) => {
+    // Parse the structured markdown response
+    const sections = {};
+    const lines = text.split('\n');
+    let currentSection = null;
+    let currentContent = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Detect section headers
+      if (trimmed.startsWith('- Expanded Rationale:') || trimmed.startsWith('**Expanded Rationale**')) {
+        if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
+        currentSection = 'rationale';
+        currentContent = [trimmed.replace(/^-\s*Expanded Rationale:\s*|^\*\*Expanded Rationale\*\*:?\s*/i, '')];
+      } else if (trimmed.startsWith('- Impact & Stakeholders:') || trimmed.startsWith('**Impact & Stakeholders**')) {
+        if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
+        currentSection = 'impact';
+        currentContent = [trimmed.replace(/^-\s*Impact & Stakeholders:\s*|^\*\*Impact & Stakeholders\*\*:?\s*/i, '')];
+      } else if (trimmed.startsWith('- Root Cause Hypotheses:') || trimmed.startsWith('**Root Cause Hypotheses**')) {
+        if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
+        currentSection = 'rootCause';
+        currentContent = [trimmed.replace(/^-\s*Root Cause Hypotheses:\s*|^\*\*Root Cause Hypotheses\*\*:?\s*/i, '')];
+      } else if (trimmed.startsWith('- Diagnostics to Run:') || trimmed.startsWith('**Diagnostics to Run**')) {
+        if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
+        currentSection = 'diagnostics';
+        currentContent = [trimmed.replace(/^-\s*Diagnostics to Run:\s*|^\*\*Diagnostics to Run\*\*:?\s*/i, '')];
+      } else if (trimmed.startsWith('**Detailed Remediation Plan**') || trimmed.startsWith('- Detailed Remediation Plan')) {
+        if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
+        currentSection = 'remediation';
+        currentContent = [];
+      } else if (currentSection) {
+        currentContent.push(line);
+      }
+    }
+    
+    if (currentSection) {
+      sections[currentSection] = currentContent.join('\n').trim();
+    }
+
+    return sections;
+  };
+
+  const renderStructuredExpansion = (expansion) => {
+    if (!expansion) return null;
+
+    const sectionConfig = [
+      { key: 'rationale', title: '🎯 Expanded Rationale', color: '#3b82f6' },
+      { key: 'impact', title: '👥 Impact & Stakeholders', color: '#ef4444' },
+      { key: 'rootCause', title: '🔍 Root Cause Hypotheses', color: '#eab308' },
+      { key: 'diagnostics', title: '🔬 Diagnostics to Run', color: '#8b5cf6' },
+      { key: 'remediation', title: '🛠️ Detailed Remediation Plan', color: '#10b981' }
+    ];
+
+    return (
+      <div style={{ marginTop: '12px' }}>
+        {sectionConfig.map(({ key, title, color }) => 
+          expansion[key] && (
+            <div key={key} style={{ marginBottom: '16px' }}>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: 'bold',
+                color: color,
+                marginBottom: '8px',
+                paddingBottom: '4px',
+                borderBottom: `2px solid ${color}40`
+              }}>
+                {title}
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: '#cccccc',
+                lineHeight: '1.6',
+                paddingLeft: '12px',
+                paddingTop: '8px',
+                paddingBottom: '8px',
+                paddingRight: '8px',
+                borderLeft: `3px solid ${color}`,
+                backgroundColor: `${color}10`,
+                borderRadius: '4px',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {formatText(expansion[key])}
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    );
   };
 
   const handleThumbsUp = (index) => {
@@ -175,7 +284,8 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
           issue_name: 'Full Ethics Compliance Report',
           issue_description: fullAnalysis,
           file_name: fileToUse,
-          file_content: fileContents[fileToUse]
+          file_content: fileContents[fileToUse],
+          cache_key: cacheKey
         })
       });
 
@@ -332,7 +442,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const warningCount = problems.filter(p => p.severity === 'warning').length;
   const infoCount = problems.filter(p => p.severity === 'info').length;
 
-  // Styles
+  // Styles (keeping original styles)
   const containerStyle = {
     display: 'flex',
     flexDirection: 'column',
@@ -375,17 +485,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     fontSize: '12px',
     color: '#858585',
     marginBottom: '4px',
-  };
-
-  const fileNameStyle = {
-    fontSize: '14px',
-    paddingLeft: '8px',
-    paddingRight: '8px',
-    paddingTop: '4px',
-    paddingBottom: '4px',
-    backgroundColor: '#1e1e1e',
-    borderRadius: '4px',
-    color: '#cccccc',
   };
 
   const fileDropdownStyle = {
@@ -592,7 +691,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         )}
       </div>
 
-      {/* Analysis control */}
       <div style={analysisControlStyle}>
         <div style={fileInfoStyle}>
           <div style={labelStyle}>Selected File:</div>
@@ -653,7 +751,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         )}
       </div>
 
-      {/* Problems summary */}
       {hasAnalyzed && (
         <div style={summaryStyle}>
           <div style={summaryItemStyle}>
@@ -671,7 +768,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         </div>
       )}
 
-      {/* Problems list */}
       <div style={problemsListStyle}>
         {!hasAnalyzed ? (
           <div style={emptyStateStyle}>
@@ -694,7 +790,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
                   onMouseEnter={() => setHoveredIndex(index)}
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
-                  {/* Card Header - Always Visible */}
                   <div 
                     onClick={() => setExpandedIndex(isExpanded ? null : index)}
                     style={{ padding: '12px' }}
@@ -715,7 +810,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
                     </div>
                   </div>
 
-                  {/* Expanded Content */}
                   {isExpanded && (
                     <div style={{
                       padding: '0 12px 12px 40px',
@@ -775,35 +869,8 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
                         </div>
                       )}
 
-                      {/* Clarity Details from LLM */}
-                      {problem.clarityDetails && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <div style={{
-                            fontSize: '13px',
-                            fontWeight: 'bold',
-                            color: '#3b82f6',
-                            marginBottom: '6px'
-                          }}>
-                            💡 Clarity Details:
-                          </div>
-                          <div style={{
-                            fontSize: '12px',
-                            color: '#cccccc',
-                            lineHeight: '1.6',
-                            paddingLeft: '12px',
-                            paddingTop: '8px',
-                            paddingBottom: '8px',
-                            paddingRight: '8px',
-                            borderLeft: '2px solid #3b82f6',
-                            backgroundColor: '#1a2332',
-                            borderRadius: '4px'
-                          }}>
-                            {formatText(problem.clarityDetails)}
-                          </div>
-                        </div>
-                      )}
+                      {problem.structuredExpansion && renderStructuredExpansion(problem.structuredExpansion)}
 
-                      {/* Feedback Actions */}
                       <div style={{
                         display: 'flex',
                         gap: '8px',
@@ -901,7 +968,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         )}
       </div>
 
-      {/* Full Report Modal */}
       {showFullReport && (
         <div style={modalOverlayStyle} onClick={() => setShowFullReport(false)}>
           <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
@@ -966,7 +1032,6 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
             <div style={modalBodyStyle}>
               {formatAnalysis(fullAnalysis)}
               
-              {/* Report Clarity Section */}
               {reportClarity && (
                 <>
                   <hr style={{ 
