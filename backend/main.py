@@ -521,6 +521,121 @@ def analyze_ethics_compliance(
     return result
 
 
+def elaborate_attribute(
+    proj_desc,
+    data_desc,
+    model_desc,
+    attr_response,
+    guidelines,
+    temperature,
+    model_id,
+    
+) -> str:
+    
+    system_prompt = get_prompt(style="attribute expansion", guidelines=guidelines)
+    
+    user_prompt_parts = [
+        "# Project Context",
+        f"**Project Description:** {proj_desc}",
+        "",
+        "# Data Information",
+        data_desc,
+        "",
+        "# Model Information",
+        model_desc,
+        "# Attribute assessment block",
+        attr_response,
+        ""
+    ]
+    
+    user_prompt_parts.extend([
+        "# Your Task",
+        "Based on the single attribute assessment block, project context, and ethical guidelines provided above, ",
+        "elaborate on this one finding without changing its original status.",
+        "",
+        "Explain why it matters, link it to specific guidelines, propose likely technical root causes, diagnostics to run, and a concrete remediation plan following the required output format."
+    ])
+    
+    user_prompt = "\n".join(user_prompt_parts)
+    
+    # === 5. Call LLM ===
+    llm_kwargs = {'temperature': temperature}
+    if model_id:
+        llm_kwargs['model_id'] = model_id
+    
+    llm_response = call_llm(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        **llm_kwargs
+    )
+    
+    return llm_response
+
+
+def plot_interp_attr(
+    proj_desc,
+    data_desc,
+    model_desc,
+    attr_response,
+    guidelines,
+    temperature,
+    model_id,
+    attr_ice_context: Optional[dict] = None,
+    attr_lime_context: Optional[dict] = None
+) -> str:
+    
+    system_prompt = get_prompt(style="explainability analysis", guidelines=guidelines)
+    
+    user_prompt = [
+        {
+            "type": "text",
+            "text": f"""\n# Project Context\n**Project Description:** {proj_desc}"""
+        },
+        {
+            "type": "text",
+            "text": f"""\n# Data Information\n{data_desc}"""
+        },
+        {
+            "type": "text",
+            "text": f"""\n# Model Information\n{model_desc}"""
+        },
+        {
+            "type": "text",
+            "text": f"""\n# Attribute assessment block\n{attr_response}"""
+        }   
+    ]
+    
+    if attr_ice_context:
+        user_prompt.append(attr_ice_context)
+        
+    if attr_lime_context:
+        user_prompt.append(attr_lime_context)
+    
+    user_prompt.append(
+        {
+            "type": "text",
+            "text": """# Your Task
+Based on the single attribute assessment block, project context, and ethical guidelines provided above, elaborate on this one finding without changing its original status.
+elaborate on this one finding without changing its original status.
+
+Explain why it matters, link it to specific guidelines, propose likely technical root causes, diagnostics to run, and a concrete remediation plan following the required output format."""
+        }
+    )
+    
+    # === 5. Call LLM ===
+    llm_kwargs = {'temperature': temperature}
+    if model_id:
+        llm_kwargs['model_id'] = model_id
+    
+    llm_response = call_llm(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        **llm_kwargs
+    )
+    
+    return llm_response
+
+
 def analyze_ethics_compliance_simple(
     model: Any,
     data: pd.DataFrame,
