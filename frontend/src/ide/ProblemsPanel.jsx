@@ -12,7 +12,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
   const [localSelectedFile, setLocalSelectedFile] = useState(selectedFile);
   const [cacheKey, setCacheKey] = useState(null);
-  
+
   // Feedback state
   const [feedback, setFeedback] = useState({});
   const [loadingClarity, setLoadingClarity] = useState({});
@@ -47,7 +47,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     }
 
     setIsAnalyzing(true);
-    
+
     try {
       const response = await fetch('http://localhost:5001/api/analyze', {
         method: 'POST',
@@ -62,7 +62,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
       });
 
       const data = await response.json();
-      
+
       console.log('=== API RESPONSE ===', data);
 
       if (data.success) {
@@ -75,9 +75,9 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
           remedies: issue.possible_remedies || [],
           rawIssue: issue // Store original for attribute expansion
         }));
-        
+
         console.log('Mapped Issues:', mappedIssues);
-        
+
         setProblems(mappedIssues);
         setFullAnalysis(data.full_analysis || '');
         setCacheKey(data.cache_key); // Store cache key for attribute expansion
@@ -93,6 +93,177 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const parseIssuesFromAnalysis = (text) => {
+    if (!text) return [];
+
+    const issues = [];
+    const lines = text.split('\n');
+    let currentIssue = null;
+    let currentSection = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Detect issue headers (look for patterns like "1. Issue Name" or "#### Issue Name")
+      if (line.match(/^\d+\.\s+\*\*.*\*\*/) || line.match(/^####\s+\d+\./)) {
+        if (currentIssue) {
+          issues.push(currentIssue);
+        }
+        currentIssue = {
+          name: line.replace(/^\d+\.\s+\*\*|\*\*|^####\s+\d+\.\s+/g, '').trim(),
+          severity: 'info',
+          description: '',
+          evidence: '',
+          remedies: '',
+          fullContent: line + '\n'
+        };
+        currentSection = 'name';
+      }
+      // Detect sections within an issue
+      else if (currentIssue && line.match(/^\*\*(Severity|Description|Evidence|Recommendation|Remediation).*:\*\*/)) {
+        const sectionName = line.match(/^\*\*(Severity|Description|Evidence|Recommendation|Remediation)/)[1].toLowerCase();
+        currentSection = sectionName === 'recommendation' || sectionName === 'remediation' ? 'remedies' : sectionName;
+        currentIssue.fullContent += line + '\n';
+
+        // Extract severity level
+        if (sectionName === 'Severity' && line.includes('🔴')) {
+          currentIssue.severity = 'error';
+        } else if (sectionName === 'Severity' && line.includes('🟡')) {
+          currentIssue.severity = 'warning';
+        }
+      }
+      // Add content to current section
+      else if (currentIssue && line.length > 0 && currentSection) {
+        currentIssue.fullContent += line + '\n';
+        if (currentSection === 'description' || currentSection === 'evidence') {
+          currentIssue[currentSection] += (currentIssue[currentSection] ? '\n' : '') + line;
+        } else if (currentSection === 'remedies' && line.startsWith('-')) {
+          currentIssue[currentSection] += (currentIssue[currentSection] ? '\n' : '') + line;
+        }
+      }
+    }
+
+    if (currentIssue) {
+      issues.push(currentIssue);
+    }
+
+    return issues;
+  };
+
+  const renderFullReportWithExpansion = () => {
+    if (!problems || problems.length === 0) {
+      return formatAnalysis(fullAnalysis);
+    }
+
+    return problems.map((problem, index) => (
+      <div key={index} style={{
+        border: '1px solid #3e3e42',
+        borderRadius: '6px',
+        padding: '16px',
+        marginBottom: '16px',
+        backgroundColor: '#1a1a1a'
+      }}>
+        {/* Issue Title */}
+        <div style={{
+          fontSize: '16px',
+          fontWeight: 'bold',
+          color: '#3b82f6',
+          marginBottom: '12px'
+        }}>
+          {problem.name}
+        </div>
+
+        {/* Status */}
+        <div style={{ marginBottom: '8px' }}>
+          <strong style={{ color: '#eab308' }}>Status:</strong>{' '}
+          <span style={{ color: '#cccccc' }}>
+            {problem.rawIssue?.issue_status ||
+              (problem.severity === 'error' ? 'Violation' :
+                problem.severity === 'warning' ? 'Possible Concern' : 'Not Assessable')}
+          </span>
+        </div>
+
+        {/* Description */}
+        {(problem.rawIssue?.issue_description || problem.summary) && (
+          <div style={{ marginBottom: '8px' }}>
+            <strong style={{ color: '#eab308' }}>Description:</strong>{' '}
+            <span style={{ color: '#cccccc', lineHeight: '1.6' }}>
+              {problem.rawIssue?.issue_description || problem.summary}
+            </span>
+          </div>
+        )}
+
+        {/* Evidence */}
+        {problem.evidence && (
+          <div style={{ marginBottom: '8px' }}>
+            <strong style={{ color: '#eab308' }}>Evidence:</strong>
+            <div style={{
+              marginTop: '4px',
+              paddingLeft: '12px',
+              borderLeft: '2px solid #3e3e42',
+              color: '#cccccc',
+              lineHeight: '1.6'
+            }}>
+              {problem.evidence.split('\n').map((line, i) => (
+                line.trim().startsWith('-') ? (
+                  <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ color: '#4CAF50' }}>•</span>
+                    <span>{line.trim().substring(1).trim()}</span>
+                  </div>
+                ) : (
+                  <div key={i} style={{ marginBottom: '4px' }}>{line}</div>
+                )
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recommendation */}
+        {problem.remedies && problem.remedies.length > 0 && (
+          <div style={{ marginBottom: '8px' }}>
+            <strong style={{ color: '#eab308' }}>Recommendation:</strong>
+            <div style={{
+              marginTop: '4px',
+              paddingLeft: '12px',
+              color: '#cccccc',
+              lineHeight: '1.6'
+            }}>
+              {problem.remedies.map((remedy, i) => (
+                <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ color: '#4CAF50' }}>•</span>
+                  <span>{remedy}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Expanded Details - Only show if reportClarity is true and issue has clarity */}
+        {reportClarity && problem.structuredExpansion && (
+          <div style={{
+            marginTop: '16px',
+            paddingTop: '16px',
+            borderTop: '2px solid rgb(76, 175, 80)'
+          }}>
+            <div style={{
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: 'rgb(76, 175, 80)',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Lightbulb size={18} />
+              Additional Clarity & Guidance
+            </div>
+            {renderStructuredExpansion(problem.structuredExpansion)}
+          </div>
+        )}
+      </div>
+    ));
   };
 
   const handleGiveClarity = async (index) => {
@@ -130,7 +301,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
       if (data.success) {
         // Parse the structured expansion
         const parsedExpansion = parseAttributeExpansion(data.additional_details);
-        
+
         // Update the problem with structured details
         setProblems(prev => {
           const updated = [...prev];
@@ -168,7 +339,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
 
     for (const line of lines) {
       const trimmed = line.trim();
-      
+
       // Detect section headers
       if (trimmed.startsWith('- Expanded Rationale:') || trimmed.startsWith('**Expanded Rationale**')) {
         if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
@@ -194,7 +365,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         currentContent.push(line);
       }
     }
-    
+
     if (currentSection) {
       sections[currentSection] = currentContent.join('\n').trim();
     }
@@ -215,7 +386,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
 
     return (
       <div style={{ marginTop: '12px' }}>
-        {sectionConfig.map(({ key, title, color }) => 
+        {sectionConfig.map(({ key, title, color }) =>
           expansion[key] && (
             <div key={key} style={{ marginBottom: '16px' }}>
               <div style={{
@@ -253,8 +424,8 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const handleThumbsUp = (index) => {
     setFeedback(prev => ({
       ...prev,
-      [index]: { 
-        ...prev[index], 
+      [index]: {
+        ...prev[index],
         rating: prev[index]?.rating === 'up' ? null : 'up'
       }
     }));
@@ -263,8 +434,8 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
   const handleThumbsDown = (index) => {
     setFeedback(prev => ({
       ...prev,
-      [index]: { 
-        ...prev[index], 
+      [index]: {
+        ...prev[index],
         rating: prev[index]?.rating === 'down' ? null : 'down'
       }
     }));
@@ -275,14 +446,23 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     setLoadingReportClarity(true);
 
     try {
-      const response = await fetch('http://localhost:5001/api/request-details', {
+      // Prepare all issues for batch request
+      const issuesForBatch = problems.map(problem => ({
+        issue_name: problem.name,
+        issue_description: problem.rawIssue?.issue_description || problem.summary || 'No description available',
+        issue_evidence: problem.rawIssue?.issue_evidence || problem.evidence || ''
+      }));
+
+      console.log(`📦 Sending batch request for ${issuesForBatch.length} issues`);
+
+      // Single batch API call for ALL issues
+      const response = await fetch('http://localhost:5001/api/request-details-batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          issue_name: 'Full Ethics Compliance Report',
-          issue_description: fullAnalysis,
+          issues: issuesForBatch,
           file_name: fileToUse,
           file_content: fileContents[fileToUse],
           cache_key: cacheKey
@@ -292,11 +472,34 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
       const data = await response.json();
 
       if (data.success) {
-        setReportClarity(data.additional_details);
+        console.log(`✅ Received batch response with ${Object.keys(data.issue_details).length} expansions`);
+
+        // Parse and update all issues with their expansions
+        setProblems(prev => {
+          const updated = [...prev];
+          updated.forEach((problem, index) => {
+            const expansion = data.issue_details[problem.name];
+            if (expansion) {
+              const parsedExpansion = parseAttributeExpansion(expansion);
+              updated[index] = {
+                ...updated[index],
+                clarityDetails: expansion,
+                structuredExpansion: parsedExpansion,
+                hasClarity: true
+              };
+            }
+          });
+          return updated;
+        });
+
+        setReportClarity(true);
+      } else {
+        console.error('Backend returned error:', data.error);
+        alert(`Failed to get clarity: ${data.error}`);
       }
     } catch (error) {
-      console.error('Error requesting report clarity:', error);
-      alert('Could not get clarity. Please try again.');
+      console.error('Error requesting batch clarity:', error);
+      alert('Could not get clarity for all issues. Please try again.');
     } finally {
       setLoadingReportClarity(false);
     }
@@ -317,7 +520,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
 
   const formatText = (text) => {
     if (!text) return text;
-    
+
     const parts = text.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
@@ -333,17 +536,68 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
     const lines = text.split('\n');
     const elements = [];
     let key = 0;
+    let currentIssue = [];
+    let isInIssue = false;
 
-    lines.forEach((line) => {
+    const renderIssueBox = (issueElements, boxKey) => {
+      return (
+        <div key={boxKey} style={{
+          border: '1px solid #3e3e42',
+          borderRadius: '6px',
+          padding: '16px',
+          marginBottom: '16px',
+          backgroundColor: '#1a1a1a'
+        }}>
+          {issueElements}
+        </div>
+      );
+    };
+
+    lines.forEach((line, index) => {
       const trimmed = line.trim();
-      
+
+      // Detect the start of an issue (numbered headers like "1. Issue Name" or "#### 1.")
+      const isIssueStart = trimmed.match(/^\d+\.\s+[A-Z]/) && !isInIssue;
+
+      // Detect separator or major section (not an issue)
+      const isSeparator = trimmed === '---';
+      const isMajorSection = trimmed.startsWith('###') && !trimmed.match(/###\s*\d+\./);
+
+      if (isIssueStart) {
+        // Save previous issue if exists
+        if (currentIssue.length > 0) {
+          elements.push(renderIssueBox(currentIssue, key++));
+          currentIssue = [];
+        }
+        isInIssue = true;
+      } else if (isSeparator && isInIssue) {
+        // End current issue when we hit a separator
+        if (currentIssue.length > 0) {
+          elements.push(renderIssueBox(currentIssue, key++));
+          currentIssue = [];
+          isInIssue = false;
+        }
+        // Don't render the separator itself
+        return;
+      } else if (isMajorSection) {
+        // End current issue and render the major section outside boxes
+        if (currentIssue.length > 0) {
+          elements.push(renderIssueBox(currentIssue, key++));
+          currentIssue = [];
+          isInIssue = false;
+        }
+      }
+
+      // Build the formatted line element
+      let lineElement = null;
+
       if (trimmed.startsWith('###')) {
-        elements.push(
-          <div key={key++} style={{ 
-            fontSize: '18px', 
-            fontWeight: 'bold', 
+        lineElement = (
+          <div key={key++} style={{
+            fontSize: '18px',
+            fontWeight: 'bold',
             color: '#4CAF50',
-            marginTop: '16px',
+            marginTop: isInIssue ? '0' : '16px',
             marginBottom: '8px'
           }}>
             {trimmed.replace(/^###\s*/, '')}
@@ -351,12 +605,12 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         );
       }
       else if (trimmed.startsWith('####')) {
-        elements.push(
-          <div key={key++} style={{ 
-            fontSize: '16px', 
-            fontWeight: 'bold', 
+        lineElement = (
+          <div key={key++} style={{
+            fontSize: '16px',
+            fontWeight: 'bold',
             color: '#3b82f6',
-            marginTop: '12px',
+            marginTop: isInIssue ? '0' : '12px',
             marginBottom: '6px'
           }}>
             {trimmed.replace(/^####\s*/, '')}
@@ -364,16 +618,16 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         );
       }
       else if (trimmed.includes('**')) {
-        elements.push(
+        lineElement = (
           <div key={key++} style={{ marginBottom: '4px', lineHeight: '1.6' }}>
             {formatText(trimmed)}
           </div>
         );
       }
       else if (trimmed.startsWith('-')) {
-        elements.push(
-          <div key={key++} style={{ 
-            marginLeft: '16px', 
+        lineElement = (
+          <div key={key++} style={{
+            marginLeft: '16px',
             marginBottom: '4px',
             display: 'flex',
             gap: '8px',
@@ -385,17 +639,17 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         );
       }
       else if (trimmed === '---') {
-        elements.push(
-          <hr key={key++} style={{ 
-            border: 'none', 
+        lineElement = (
+          <hr key={key++} style={{
+            border: 'none',
             borderTop: '1px solid #3e3e42',
             margin: '16px 0'
           }} />
         );
       }
       else if (trimmed.length > 0) {
-        elements.push(
-          <div key={key++} style={{ 
+        lineElement = (
+          <div key={key++} style={{
             marginBottom: '8px',
             lineHeight: '1.6',
             color: '#cccccc'
@@ -405,9 +659,21 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
         );
       }
       else {
-        elements.push(<div key={key++} style={{ height: '8px' }} />);
+        lineElement = <div key={key++} style={{ height: '8px' }} />;
+      }
+
+      // Add to current issue or directly to elements
+      if (isInIssue && lineElement) {
+        currentIssue.push(lineElement);
+      } else if (lineElement) {
+        elements.push(lineElement);
       }
     });
+
+    // Don't forget the last issue
+    if (currentIssue.length > 0) {
+      elements.push(renderIssueBox(currentIssue, key++));
+    }
 
     return elements;
   };
@@ -674,7 +940,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
 
   return (
     <div style={containerStyle}>
-      <div 
+      <div
         style={collapseHeaderStyle}
         onClick={() => setIsControlsCollapsed(!isControlsCollapsed)}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d2e'}
@@ -707,7 +973,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
             ))}
           </select>
         </div>
-        
+
         <button
           onClick={handleStartAnalysis}
           disabled={!selectedFile || isAnalyzing}
@@ -745,7 +1011,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4b5563'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6b7280'}
             >
-              📥 Download Report
+              Download Report
             </button>
           </>
         )}
@@ -782,7 +1048,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
             {problems.map((problem, index) => {
               const isExpanded = expandedIndex === index;
               const rating = feedback[index]?.rating;
-              
+
               return (
                 <div
                   key={index}
@@ -790,7 +1056,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
                   onMouseEnter={() => setHoveredIndex(index)}
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
-                  <div 
+                  <div
                     onClick={() => setExpandedIndex(isExpanded ? null : index)}
                     style={{ padding: '12px' }}
                   >
@@ -1030,44 +1296,7 @@ export function ProblemsPanel({ selectedFile, fileContents, onFileSelect }) {
               </div>
             </div>
             <div style={modalBodyStyle}>
-              {formatAnalysis(fullAnalysis)}
-              
-              {reportClarity && (
-                <>
-                  <hr style={{ 
-                    border: 'none', 
-                    borderTop: '2px solid rgb(76, 175, 80)',
-                    margin: '24px 0'
-                  }} />
-                  <div style={{
-                    marginTop: '16px',
-                    padding: '16px',
-                    backgroundColor: '#1a2e1a',
-                    borderRadius: '6px',
-                    border: '1px solid rgb(76, 175, 80)'
-                  }}>
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      color: 'rgb(76, 175, 80)',
-                      marginBottom: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <Lightbulb size={20} />
-                      Additional Clarity & Guidance
-                    </div>
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#cccccc',
-                      lineHeight: '1.6'
-                    }}>
-                      {formatAnalysis(reportClarity)}
-                    </div>
-                  </div>
-                </>
-              )}
+              {renderFullReportWithExpansion()}
             </div>
           </div>
         </div>

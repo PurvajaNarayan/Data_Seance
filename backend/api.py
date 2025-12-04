@@ -261,6 +261,117 @@ def request_attribute_details():
         }), 500
 
 
+@app.route('/api/request-details-batch', methods=['POST'])
+def request_attribute_details_batch():
+    """
+    Batch endpoint that elaborates multiple issues in a SINGLE LLM call.
+    This drastically reduces API usage from N calls to just 1 call.
+    
+    Expects JSON payload:
+    {
+        "issues": [{
+            "issue_name": "1. Protected Attributes",
+            "issue_description": "Description...",
+            "issue_evidence": "Evidence..."
+        }],
+        "file_name": "data.csv",
+        "file_content": "csv content...",
+        "cache_key": "file_hash_12345"
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "issue_details": {
+            "1. Protected Attributes": "expanded details...",
+            ...
+        }
+    }
+    """
+    try:
+        data = request.get_json()
+        issues = data.get('issues', [])
+        file_name = data.get('file_name', 'unknown')
+        file_content = data.get('file_content', '')
+        cache_key = data.get('cache_key')
+        
+        if not issues:
+            return jsonify({'success': False, 'error': 'No issues provided'}), 400
+        
+        print(f"\n{'='*60}")
+        print(f"📦 Batch expanding {len(issues)} attributes")
+        print(f"📄 File: {file_name}")
+        print(f"🔑 Cache key: {cache_key}")
+        print(f"{'='*60}\n")
+        
+        # Get or create context
+        if cache_key and cache_key in analysis_cache:
+            print("✓ Using cached context")
+            context = analysis_cache[cache_key]
+            data_desc = context.get('data_desc', 'Dataset information not available')
+            model_desc = context.get('model_desc') or 'No model provided (dataset-only analysis)'
+            guidelines = context.get('guidelines', 'Ethical AI guidelines not available')
+            proj_desc = context.get('project_description', 'Data Science Project')
+        else:
+            print("⚠ No cache found, regenerating context...")
+            file_ext = file_name.split('.')[-1].lower()
+            
+            if file_ext == 'csv':
+                df = pd.read_csv(StringIO(file_content))
+            else:
+                df = pd.DataFrame({'code_line': file_content.split('\n')})
+            
+            from pathlib import Path
+            guidelines_path = Path(__file__).parent.parent / 'assets' / 'guidelines' / 'guidelines_shorter.txt'
+            
+            if guidelines_path.exists():
+                with open(guidelines_path, 'r') as f:
+                    guidelines = f.read()
+            else:
+                guidelines = "Ethical AI guidelines not available."
+            
+            data_desc = describe_pandas_dataset(df) or "Dataset information not available"
+            model_desc = "No model provided (dataset-only analysis)"
+            proj_desc = "Data Science Project"
+        
+        # Ensure all parameters are strings
+        data_desc = str(data_desc) if data_desc else "Dataset information not available"
+        model_desc = str(model_desc) if model_desc else "No model provided (dataset-only analysis)"
+        guidelines = str(guidelines) if guidelines else "Ethical AI guidelines not available"
+        proj_desc = str(proj_desc) if proj_desc else "Data Science Project"
+        
+        # Call batch elaboration - ONE LLM CALL for all issues!
+        from backend.main import elaborate_attribute_batch
+        
+        print(f"🚀 Calling elaborate_attribute_batch() with {len(issues)} issues...")
+        
+        issue_details = elaborate_attribute_batch(
+            proj_desc=proj_desc,
+            data_desc=data_desc,
+            model_desc=model_desc,
+            issues_list=issues,
+            guidelines=guidelines,
+            temperature=0.7,
+            model_id=None
+        )
+        
+        print(f"✓ Batch expansion complete! Received {len(issue_details)} responses\n")
+        
+        return jsonify({
+            'success': True,
+            'issue_details': issue_details
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in batch expansion: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
 def parse_llm_to_structured_issues(llm_response, file_name, project_description):
     """Parse structured LLM response - handles multiple format variations."""
     issues = []

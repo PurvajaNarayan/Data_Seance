@@ -570,6 +570,121 @@ def elaborate_attribute(
     return llm_response
 
 
+def elaborate_attribute_batch(
+    proj_desc: str,
+    data_desc: str,
+    model_desc: str,
+    issues_list: list[dict],
+    guidelines: str,
+    temperature: float = 0.7,
+    model_id: Optional[str] = None
+) -> dict[str, str]:
+    """
+    Batch elaborate multiple attribute issues in a single LLM call.
+    
+    Args:
+        proj_desc: Project description
+        data_desc: Dataset description
+        model_desc: Model description
+        issues_list: List of issue dicts, each containing:
+            - 'issue_name': Name of the issue
+            - 'issue_description': Description
+            - 'issue_evidence': Evidence/details
+        guidelines: Ethical guidelines text
+        temperature: LLM sampling temperature
+        model_id: Optional LLM model override
+    
+    Returns:
+        dict mapping issue_name to elaborated response text
+    """
+    system_prompt = get_prompt(style="attribute expansion", guidelines=guidelines)
+    
+    # Build prompt with all issues
+    user_prompt_parts = [
+        "# Project Context",
+        f"**Project Description:** {proj_desc}",
+        "",
+        "# Data Information",
+        data_desc,
+        "",
+        "# Model Information",
+        model_desc,
+        "",
+        "# Multiple Attribute Assessment Blocks",
+        ""
+    ]
+    
+    # Add each issue as a numbered block
+    for i, issue in enumerate(issues_list, 1):
+        issue_block = f"""
+## Issue {i}: {issue.get('issue_name', 'Unknown')}
+
+**Description**: {issue.get('issue_description', 'N/A')}
+
+**Evidence**: 
+{issue.get('issue_evidence', 'N/A')}
+"""
+        user_prompt_parts.append(issue_block.strip())
+        user_prompt_parts.append("")
+    
+    user_prompt_parts.extend([
+        "",
+        "# Your Task",
+        f"You are analyzing {len(issues_list)} ethical issues found in this project.",
+        "For EACH issue above, provide the structured expansion following the required output format.",
+        "",
+        "For each issue, elaborate without changing its original status:",
+        "- Explain why it matters",
+        "- Link it to specific guidelines",
+        "- Propose likely technical root causes",
+        "- Suggest diagnostics to run",
+        "- Provide a concrete remediation plan",
+        "",
+        f"Provide {len(issues_list)} separate expansions, clearly labeled with the issue name/number."
+    ])
+    
+    user_prompt = "\n".join(user_prompt_parts)
+    
+    # Call LLM once for all issues
+    llm_kwargs = {'temperature': temperature}
+    if model_id:
+        llm_kwargs['model_id'] = model_id
+    
+    llm_response = call_llm(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        **llm_kwargs
+    )
+    
+    # Parse response - split by issue markers
+    # Look for patterns like "Issue 1:", "## Issue 1:", etc.
+    import re
+    
+    issue_responses = {}
+    
+    # Try to split by issue numbers
+    parts = re.split(r'(?:^|\n)(?:##\s*)?Issue\s+(\d+):', llm_response, flags=re.MULTILINE)
+    
+    if len(parts) > 1:
+        # Successfully split - parts[0] is intro, then alternates between number and content
+        for i in range(1, len(parts), 2):
+            if i + 1 < len(parts):
+                issue_num = int(parts[i])
+                content = parts[i + 1].strip()
+                
+                # Map back to original issue name
+                if 0 < issue_num <= len(issues_list):
+                    issue_name = issues_list[issue_num - 1].get('issue_name', f'Issue {issue_num}')
+                    issue_responses[issue_name] = content
+    else:
+        # Fallback: couldn't split cleanly, return whole response for first issue
+        if issues_list:
+            first_issue_name = issues_list[0].get('issue_name', 'Issue 1')
+            issue_responses[first_issue_name] = llm_response
+    
+    return issue_responses
+
+
 def plot_interp_attr(
     proj_desc,
     data_desc,
